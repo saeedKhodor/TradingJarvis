@@ -225,9 +225,9 @@ class TelegramCommander:
             f"<b>Active Skills Roster:</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"1. <b>SafetyLock_Cascade (SKILL-01)</b>\n"
-            f"   • Hierarchy: <code>H1 Close < 9 < 21 < 50-EMA</code>\n"
+            f"   • Hierarchy: <code>H1 Close &lt; 9 &lt; 21 &lt; 50-EMA</code>\n"
             f"   • Action: Enforces <code>LOCKED IN CASH</code>\n"
-            f"   • Retests: H1 9-EMA & 30M 9-EMA\n"
+            f"   • Retests: H1 9-EMA &amp; 30M 9-EMA\n"
             f"   • Status: 🟢 <code>ARMED</code>\n\n"
             f"<i>Sir, all specialist skills are actively monitoring market state.</i>"
         )
