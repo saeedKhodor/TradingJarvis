@@ -186,7 +186,8 @@ def main():
     parser.add_argument("--poll-interval", type=float, default=1.0, help="Poll interval in seconds")
     parser.add_argument("--snapshot", action="store_true", help="Print single snapshot and exit")
     parser.add_argument("--test-alert", action="store_true", help="Fetch latest M1 bar, evaluate skills, and send TG alert")
-    parser.add_argument("--telegram", action="store_true", default=True, help="Enable Telegram alerts on bar close")
+    parser.add_argument("--telegram", action="store_true", default=True, help="Enable Telegram alerts for skills and sentinel events")
+    parser.add_argument("--notify-bars", action="store_true", default=False, help="Send routine Telegram alerts on every 1-min bar close (testing only)")
 
     args = parser.parse_args()
 
@@ -210,18 +211,18 @@ def main():
         poll_interval_sec=args.poll_interval
     )
 
-    # Initialize Arbiter & Register Skills
+    # Initialize Arbiter & Register Skills (Handles actual strategy & safety alerts)
     arbiter = SkillArbiter(connector=connector, enable_telegram=args.telegram)
     arbiter.register_skill(SafetyLockSkill())
 
-    # Attach console telemetry handler
+    # Attach console telemetry logger
     feeder.register_bar_handler(on_bar_closed_telemetry)
 
-    # Attach Arbiter Multi-Skill Processor
+    # Attach Arbiter Multi-Skill Processor (Evaluates conditions silently every minute, alerts only on triggers)
     feeder.register_bar_handler(lambda sym, bar, c: arbiter.process_market_bar(sym, bar, c))
 
-    # Attach Telegram bar alert handler if enabled
-    if args.telegram:
+    # Attach routine 1-minute bar alert handler ONLY if explicitly requested with --notify-bars
+    if args.notify_bars:
         feeder.register_bar_handler(lambda sym, bar, c: telegram_bar_handler(sym, bar, c, connector=connector))
 
     # Start feed

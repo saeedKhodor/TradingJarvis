@@ -18,7 +18,7 @@
     "reconnect_delay_sec": 3.0
   },
   "telegram_alerts": {
-    "send_bar_close": true,
+    "send_bar_close": false,
     "send_signals": true,
     "send_risk_warnings": true
   },
