@@ -13,7 +13,7 @@ echo ========================================================================
 echo [*] Initializing J.A.R.V.I.S. environment...
 echo [*] Target Instrument: US500.cash (M1 Feed)
 echo [*] Active Skills    : Safety Lock (H1/30M 9-EMA Cascade Sentinel)
-echo [*] Telegram Alerts  : ENABLED (@Eltsstrategy_bot)
+echo [*] Telegram Alerts  : ENABLED (@TradingJarvis1_bot)
 echo ========================================================================
 echo.
 

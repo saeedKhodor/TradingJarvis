@@ -5,7 +5,7 @@
 **Branch**: `main`  
 **Workspace**: `TradingJarvis`  
 **Current Active Symbol**: `US500.cash` (M1 Base Timeframe)  
-**Telegram Bot**: `@RSRstrategy_bot` (`RsR`)
+**Telegram Bot**: `@TradingJarvis1_bot` (`Jarvis`)
 
 ---
 
@@ -16,7 +16,7 @@ During this session, we established the full foundational infrastructure and the
 1. **J.A.R.V.I.S. Persona & Telegram Subsystem**:
    - Configured the workspace skill `.agents/skills/trading-jarvis/` with J.A.R.V.I.S. persona and progressive disclosure triggers.
    - Built `telegram_notifier.py` with HTML formatting, status banners, rate limiting, and alert schemas.
-   - Authenticated with `@RSRstrategy_bot` and verified live message transmission.
+   - Authenticated with `@TradingJarvis1_bot` and verified live message transmission.
    - Secured credentials via `.gitignore` and provided `.env.example` / `telegram_config.template.json`.
 
 2. **Git Version Control & Portability**:

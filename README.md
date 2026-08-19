@@ -8,7 +8,7 @@
 
 ## 📌 Overview
 
-**TradingJarvis** is a portable, modular AI trading assistant and telemetry pipeline engineered to monitor quantitative market data from MetaTrader 5, evaluate specialized trading skills in real time, enforce risk protocols, and dispatch actionable, structured alerts to your Telegram bot ([`@Eltsstrategy_bot`](https://t.me/Eltsstrategy_bot)).
+**TradingJarvis** is a portable, modular AI trading assistant and telemetry pipeline engineered to monitor quantitative market data from MetaTrader 5, evaluate specialized trading skills in real time, enforce risk protocols, and dispatch actionable, structured alerts to your Telegram bot ([`@TradingJarvis1_bot`](https://t.me/TradingJarvis1_bot)).
 
 ---
 
