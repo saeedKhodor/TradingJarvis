@@ -119,6 +119,12 @@ def send_raw_telegram_message(
                 return False
     except urllib.error.HTTPError as e:
         err_content = e.read().decode("utf-8", errors="ignore")
+        if e.code == 400 and parse_mode:
+            # Fallback to plain text transmission without HTML tags
+            import re
+            plain_text = re.sub(r"<[^>]+>", "", message).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+            print(f"[J.A.R.V.I.S. Warning] HTML parsing failed ({err_content}). Retrying as plain text...", file=sys.stderr)
+            return send_raw_telegram_message(plain_text, bot_token=token, chat_id=target_chat, parse_mode=None)
         print(f"[J.A.R.V.I.S. Error] HTTP {e.code}: {err_content}", file=sys.stderr)
         return False
     except Exception as e:
