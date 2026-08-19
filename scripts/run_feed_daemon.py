@@ -1,11 +1,11 @@
 # === CODE INDEX ===
 # 1. Imports & Logging Configuration (Line 18)
-# 2. telegram_bar_handler() - Dispatches 1-minute bar telemetry to Telegram (Line 42)
-# 3. on_bar_closed_telemetry() - Console logger for completed candlestick bars (Line 68)
-# 4. print_market_snapshot() - Displays real-time prices, EMA, and ATR table (Line 92)
-# 5. run_single_snapshot() - Executes one-off diagnostic query of watchlist (Line 132)
-# 6. run_test_bar_alert() - Fetches latest M1 bar and transmits immediate Telegram alert (Line 150)
-# 7. main() - CLI entry point and daemon loop runner (Line 182)
+# 2. telegram_bar_handler() - Dispatches 1-minute bar telemetry to Telegram (Line 48)
+# 3. on_bar_closed_telemetry() - Console logger for completed candlestick bars (Line 78)
+# 4. print_market_snapshot() - Displays real-time prices, EMA, and ATR table (Line 105)
+# 5. run_single_snapshot() - Executes one-off diagnostic query of watchlist (Line 145)
+# 6. run_test_bar_alert() - Fetches latest M1 bar and transmits immediate Telegram alert (Line 165)
+# 7. main() - CLI entry point, Arbiter setup, and daemon loop runner (Line 205)
 # =================
 
 import os
@@ -28,6 +28,8 @@ if SKILL_SCRIPTS_DIR not in sys.path:
 from src.feed.mt5_connector import MT5Connector
 from src.feed.price_cache import PriceCache, CandleBar
 from src.feed.price_feeder import PriceFeeder
+from src.engine.arbiter import SkillArbiter
+from src.skills.safety_lock_skill import SafetyLockSkill
 
 try:
     from telegram_notifier import send_bar_telemetry, load_config
@@ -142,7 +144,7 @@ def run_single_snapshot(symbols_list: list) -> bool:
 
 
 def run_test_bar_alert(symbol: str = "US500.cash") -> bool:
-    """Fetches the latest completed M1 bar for a symbol and sends an immediate Telegram alert."""
+    """Fetches the latest completed M1 bar and evaluates Safety Lock + bar alerts."""
     print(f"\n[*] Fetching latest completed M1 bar for [{symbol}] from MT5...")
     connector = MT5Connector()
     if not connector.connect():
@@ -162,6 +164,14 @@ def run_test_bar_alert(symbol: str = "US500.cash") -> bool:
     print(f"[+] Loaded latest bar for [{symbol}] @ {latest_closed_bar.dt.strftime('%H:%M:%S UTC')}")
     print(f"    Open: {latest_closed_bar.open:.2f} | High: {latest_closed_bar.high:.2f} | Low: {latest_closed_bar.low:.2f} | Close: {latest_closed_bar.close:.2f}")
 
+    # Run Skill Arbiter evaluation
+    arbiter = SkillArbiter(connector=connector, enable_telegram=True)
+    arbiter.register_skill(SafetyLockSkill())
+    
+    print("\n[*] Evaluating J.A.R.V.I.S. Specialist Skills (Safety Lock / Cascade)...")
+    results = arbiter.process_market_bar(symbol, latest_closed_bar, cache)
+    print(f"[+] Skills evaluation complete. Triggered events: {len(results)}")
+
     print(f"\n[*] Transmitting J.A.R.V.I.S. 1-Minute Telegram Telemetry Alert...")
     telegram_bar_handler(symbol, latest_closed_bar, cache, connector=connector)
     connector.disconnect()
@@ -169,13 +179,13 @@ def run_test_bar_alert(symbol: str = "US500.cash") -> bool:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="J.A.R.V.I.S. MetaTrader 5 1-Minute Price Feeder")
+    parser = argparse.ArgumentParser(description="J.A.R.V.I.S. MetaTrader 5 Multi-Skill Price Feeder Engine")
     parser.add_argument("--symbols", type=str, help="Comma-separated symbols list (e.g. US500.cash)")
     parser.add_argument("--timeframe", type=str, default="M1", help="Timeframe (default: M1)")
     parser.add_argument("--iterations", type=int, help="Limit number of polling cycles")
     parser.add_argument("--poll-interval", type=float, default=1.0, help="Poll interval in seconds")
     parser.add_argument("--snapshot", action="store_true", help="Print single snapshot and exit")
-    parser.add_argument("--test-alert", action="store_true", help="Fetch latest M1 bar and send immediate TG alert")
+    parser.add_argument("--test-alert", action="store_true", help="Fetch latest M1 bar, evaluate skills, and send TG alert")
     parser.add_argument("--telegram", action="store_true", default=True, help="Enable Telegram alerts on bar close")
 
     args = parser.parse_args()
@@ -200,10 +210,17 @@ def main():
         poll_interval_sec=args.poll_interval
     )
 
+    # Initialize Arbiter & Register Skills
+    arbiter = SkillArbiter(connector=connector, enable_telegram=args.telegram)
+    arbiter.register_skill(SafetyLockSkill())
+
     # Attach console telemetry handler
     feeder.register_bar_handler(on_bar_closed_telemetry)
 
-    # Attach Telegram alert handler if enabled
+    # Attach Arbiter Multi-Skill Processor
+    feeder.register_bar_handler(lambda sym, bar, c: arbiter.process_market_bar(sym, bar, c))
+
+    # Attach Telegram bar alert handler if enabled
     if args.telegram:
         feeder.register_bar_handler(lambda sym, bar, c: telegram_bar_handler(sym, bar, c, connector=connector))
 
