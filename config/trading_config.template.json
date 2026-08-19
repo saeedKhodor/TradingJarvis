@@ -9,15 +9,18 @@
   "feed": {
     "timeframe": "M1",
     "symbols": [
-      "EURUSD",
-      "GBPUSD",
-      "XAUUSD"
+      "US500.cash"
     ],
     "buffer_depth": 200,
     "poll_interval_sec": 1.0,
     "align_to_minute_close": true,
     "max_reconnect_attempts": 5,
     "reconnect_delay_sec": 3.0
+  },
+  "telegram_alerts": {
+    "send_bar_close": true,
+    "send_signals": true,
+    "send_risk_warnings": true
   },
   "logging": {
     "level": "INFO",

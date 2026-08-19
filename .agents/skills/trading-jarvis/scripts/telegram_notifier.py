@@ -1,11 +1,12 @@
 # === CODE INDEX ===
-# 1. Imports & Configuration Loading (Line 15)
-# 2. send_raw_telegram_message() - Core HTTPS POST dispatcher to Telegram Bot API (Line 42)
-# 3. format_jarvis_message() - Wraps alert content in J.A.R.V.I.S. styling (Line 72)
-# 4. send_signal_alert() - Formats and dispatches trade signal notifications (Line 98)
-# 5. send_risk_alert() - Formats and dispatches urgent risk/drawdown alerts (Line 135)
-# 6. send_session_briefing() - Formats and dispatches market briefing summaries (Line 172)
-# 7. main() - CLI entry point for command-line notifications (Line 206)
+# 1. Imports & Configuration Loading (Line 16)
+# 2. send_raw_telegram_message() - Core HTTPS POST dispatcher to Telegram Bot API (Line 76)
+# 3. format_jarvis_message() - Wraps alert content in J.A.R.V.I.S. styling (Line 106)
+# 4. send_signal_alert() - Formats and dispatches trade signal notifications (Line 122)
+# 5. send_risk_alert() - Formats and dispatches urgent risk/drawdown alerts (Line 165)
+# 6. send_session_briefing() - Formats and dispatches market briefing summaries (Line 206)
+# 7. send_bar_telemetry() - Formats and dispatches 1-minute candle price alerts (Line 235)
+# 8. main() - CLI entry point for command-line notifications (Line 285)
 # =================
 
 import os
@@ -230,16 +231,64 @@ def send_session_briefing(
     return send_raw_telegram_message(message)
 
 
+def send_bar_telemetry(
+    symbol: str,
+    timeframe: str,
+    time_str: str,
+    open_p: float,
+    high_p: float,
+    low_p: float,
+    close_p: float,
+    volume: int,
+    spread: int,
+    ema: Optional[float] = None,
+    atr: Optional[float] = None
+) -> bool:
+    """Formats and dispatches a 1-minute candlestick price telemetry alert."""
+    is_bull = close_p > open_p
+    is_bear = close_p < open_p
+    dir_icon = "🟢" if is_bull else ("🔴" if is_bear else "⚪")
+    dir_text = "BULLISH CLOSE" if is_bull else ("BEARISH CLOSE" if is_bear else "DOJI / NEUTRAL")
+    
+    range_pts = abs(high_p - low_p)
+    body_pts = abs(close_p - open_p)
+
+    ema_str = f"<code>{ema:.2f}</code>" if ema is not None else "N/A"
+    atr_str = f"<code>{atr:.2f}</code>" if atr is not None else "N/A"
+
+    body = (
+        f"<b>Instrument:</b> <code>{symbol} ({timeframe})</code>\n"
+        f"<b>Bar State:</b> {dir_icon} <code>{dir_text}</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎯 <b>Close:</b> <code>{close_p:.2f}</code>  (<b>Open:</b> <code>{open_p:.2f}</code>)\n"
+        f"📈 <b>High:</b> <code>{high_p:.2f}</code> | 📉 <b>Low:</b> <code>{low_p:.2f}</code>\n"
+        f"📏 <b>Range:</b> <code>{range_pts:.2f} pts</code> | <b>Body:</b> <code>{body_pts:.2f} pts</code>\n"
+        f"📊 <b>Tick Vol:</b> <code>{volume}</code> | <b>Spread:</b> <code>{spread} pts</code>\n"
+        f"⚡ <b>EMA(14):</b> {ema_str} | <b>ATR(14):</b> {atr_str}"
+    )
+
+    message = format_jarvis_message(
+        title=f"M1 PRICE FEED [{symbol}]",
+        content=body,
+        icon="📊"
+    )
+    return send_raw_telegram_message(message)
+
+
 def main():
     """CLI dispatcher for J.A.R.V.I.S. Telegram notifications."""
     parser = argparse.ArgumentParser(description="J.A.R.V.I.S. Telegram Notification Dispatcher")
-    parser.add_argument("--type", choices=["raw", "signal", "risk", "briefing"], default="raw", help="Alert category")
+    parser.add_argument("--type", choices=["raw", "signal", "risk", "briefing", "bar"], default="raw", help="Alert category")
     parser.add_argument("--message", type=str, help="Raw message content")
-    parser.add_argument("--symbol", type=str, help="Trading instrument symbol (e.g., EURUSD, XAUUSD)")
+    parser.add_argument("--symbol", type=str, help="Trading instrument symbol (e.g., EURUSD, US500.cash)")
     parser.add_argument("--action", type=str, help="Trade action (BUY/SELL)")
-    parser.add_argument("--entry", type=float, help="Entry price")
-    parser.add_argument("--sl", type=float, help="Stop Loss price")
-    parser.add_argument("--tp", type=float, help="Take Profit price")
+    parser.add_argument("--entry", type=float, help="Entry / Open price")
+    parser.add_argument("--sl", type=float, help="Stop Loss / Low price")
+    parser.add_argument("--tp", type=float, help="Take Profit / High price")
+    parser.add_argument("--close", type=float, help="Close price for bar alert")
+    parser.add_argument("--volume", type=int, default=0, help="Volume / Tick count")
+    parser.add_argument("--spread", type=int, default=0, help="Spread in points")
+    parser.add_argument("--timeframe", type=str, default="M1", help="Timeframe (e.g., M1)")
     parser.add_argument("--strategy", type=str, default="Jarvis Algo", help="Strategy name")
     parser.add_argument("--level", type=str, default="Warning", help="Risk severity level")
     parser.add_argument("--metric", type=str, help="Risk metric name")
@@ -280,6 +329,19 @@ def main():
             daily_pnl=args.threshold or "+$1,420.50 (+1.42%)",
             open_positions=int(args.entry or 0),
             notes=args.notes or "No critical volatility events detected on the economic calendar."
+        )
+    elif args.type == "bar":
+        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        success = send_bar_telemetry(
+            symbol=args.symbol or "US500.cash",
+            timeframe=args.timeframe,
+            time_str=now_str,
+            open_p=args.entry or 5000.0,
+            high_p=args.tp or 5005.0,
+            low_p=args.sl or 4995.0,
+            close_p=args.close or args.entry or 5000.0,
+            volume=args.volume,
+            spread=args.spread
         )
     else:
         success = False
