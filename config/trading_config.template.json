@@ -1,0 +1,27 @@
+{
+  "terminal": {
+    "path": null,
+    "login": null,
+    "server": null,
+    "password": null,
+    "timeout_ms": 60000
+  },
+  "feed": {
+    "timeframe": "M1",
+    "symbols": [
+      "EURUSD",
+      "GBPUSD",
+      "XAUUSD"
+    ],
+    "buffer_depth": 200,
+    "poll_interval_sec": 1.0,
+    "align_to_minute_close": true,
+    "max_reconnect_attempts": 5,
+    "reconnect_delay_sec": 3.0
+  },
+  "logging": {
+    "level": "INFO",
+    "log_bar_closes": true,
+    "jarvis_styling": true
+  }
+}

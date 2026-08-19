@@ -28,6 +28,7 @@ wheels/
 .env.local
 .env.*.local
 .agents/skills/trading-jarvis/resources/telegram_config.json
+config/trading_config.json
 
 # Logs & Runtime
 *.log

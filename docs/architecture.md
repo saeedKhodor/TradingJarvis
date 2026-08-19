@@ -8,7 +8,8 @@ This document outlines the core task modules for J.A.R.V.I.S., their execution c
 
 | Task ID | Module | Trigger / Schedule | Input Source | Output Action |
 | :--- | :--- | :--- | :--- | :--- |
-| **TASK-01** | `Signal Dispatcher` | Real-time event / Hook | Indicator / EA / Webhook | Formatted TG Signal Alert (`📈 / 📉`) |
+| **TASK-00** | `MT5 1-Minute Price Feeder` | Top-of-minute loop (:00) | MetaTrader 5 Terminal | In-memory `PriceCache` & `on_bar_close` event |
+| **TASK-01** | `Signal Dispatcher` | Real-time event / M1 close | PriceCache / Strategy Engine | Formatted TG Signal Alert (`📈 / 📉`) |
 | **TASK-02** | `Risk Sentinel` | Continuous polling / Per trade | Account balance / Drawdown % | TG Risk Warning / Trading Halt (`🚨`) |
 | **TASK-03** | `Session Briefing` | Fixed Cron (e.g. London / NY Open) | Calendar API / Balance summary | TG Market Briefing (`🌐`) |
 | **TASK-04** | `Trade Journal & Audit` | On Position Close | Broker History API | TG PnL Notification + Local CSV/JSON Log |
@@ -20,16 +21,18 @@ This document outlines the core task modules for J.A.R.V.I.S., their execution c
 
 ```mermaid
 flowchart TD
-    Strategy[Quantitative Strategy / Indicator / EA] -->|Trade Signal| Task01[TASK-01: Signal Dispatcher]
-    Broker[MetaTrader / Broker API] -->|Equity & Positions| Task02[TASK-02: Risk Sentinel]
-    Broker -->|Fills & Closes| Task04[TASK-04: Trade Audit]
-    Calendar[Economic Calendar / News Feed] -->|Macro Events| Task03[TASK-03: Session Briefing]
+    MT5[MetaTrader 5 Terminal] -->|IPC 1-Minute Rates| Feeder[TASK-00: PriceFeeder]
+    Feeder -->|Store OHLCV| Cache[PriceCache Ring Buffer]
+    Cache -->|Indicators & Bar Closes| Strategy[TASK-01: Strategy Evaluator]
+    MT5 -->|Equity, Balance, Margin| Sentinel[TASK-02: Risk Sentinel]
+    MT5 -->|Fills & Closes| Journal[TASK-04: Trade Audit]
+    Calendar[Economic Calendar] -->|Macro Events| Briefing[TASK-03: Session Briefing]
 
-    Task01 --> Notifier[telegram_notifier.py]
-    Task02 --> Notifier
-    Task03 --> Notifier
-    Task04 --> Notifier
-    Task05[TASK-05: Heartbeat] --> Notifier
+    Strategy -->|Signal Trigger| Notifier[telegram_notifier.py]
+    Sentinel -->|Risk Alert| Notifier
+    Briefing -->|Daily Report| Notifier
+    Journal -->|PnL Outcome| Notifier
+    Heartbeat[TASK-05: Heartbeat] -->|Diagnostic| Notifier
 
     Notifier -->|HTTPS POST| TelegramAPI[Telegram Bot API]
     TelegramAPI -->|Push Notification| TelegramUser[User Device / Channel]
