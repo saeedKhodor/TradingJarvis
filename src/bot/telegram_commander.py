@@ -107,16 +107,23 @@ class TelegramCommander:
                 time.sleep(3.0)
 
     def _flush_pending_updates(self) -> None:
-        """Flushes stale updates on startup so old commands aren't executed twice."""
+        """Processes any recent pending updates on startup without discarding valid user commands."""
         try:
-            url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates?offset=-1"
+            url = f"https://api.telegram.org/bot{self.bot_token}/getUpdates"
             req = urllib.request.Request(url, headers={"User-Agent": "TradingJarvisCommander/1.0"})
             with urllib.request.urlopen(req, timeout=5) as res:
                 data = json.loads(res.read().decode("utf-8"))
                 if data.get("ok") and data.get("result"):
-                    self._last_update_id = data["result"][-1]["update_id"]
-        except Exception:
-            pass
+                    now_ts = time.time()
+                    for u in data.get("result", []):
+                        self._last_update_id = u["update_id"]
+                        msg = u.get("message", {})
+                        # Process if sent in the last 2 minutes
+                        msg_date = msg.get("date", 0)
+                        if (now_ts - msg_date) < 120 and "text" in msg:
+                            self._handle_message(msg)
+        except Exception as e:
+            logger.debug(f"Initial updates check: {e}")
 
     def _handle_message(self, msg: Dict[str, Any]) -> None:
         """Validates authorization and routes incoming command text."""
@@ -130,21 +137,23 @@ class TelegramCommander:
             return
 
         logger.info(f"Received authorized command from {sender_name}: '{text}'")
-        cmd = text.split()[0].lower() if text else ""
+        raw_cmd = text.split()[0].lower() if text else ""
+        # Remove bot mention (e.g. /skills@TradingJarvis1_bot -> /skills) and strip leading slash
+        clean_cmd = raw_cmd.split("@")[0].lstrip("/")
 
-        if cmd in ["/reboot", "/restart"]:
+        if clean_cmd in ["reboot", "restart"]:
             self._cmd_reboot()
-        elif cmd in ["/status", "/ping", "/health"]:
+        elif clean_cmd in ["status", "ping", "health"]:
             self._cmd_status()
-        elif cmd in ["/help", "/start"]:
+        elif clean_cmd in ["help", "start"]:
             self._cmd_help()
-        elif cmd in ["/skills", "/sentinel"]:
+        elif clean_cmd in ["skills", "sentinel"]:
             self._cmd_skills()
         else:
-            if cmd.startswith("/"):
+            if raw_cmd.startswith("/"):
                 reply = format_jarvis_message(
                     title="COMMAND UNRECOGNIZED",
-                    content=f"<i>Sir, command <code>{cmd}</code> is not recognized. Send /help for available directives.</i>",
+                    content=f"<i>Sir, command <code>{raw_cmd}</code> is not recognized. Send /help for available directives.</i>",
                     icon="❓"
                 )
                 send_raw_telegram_message(reply)
