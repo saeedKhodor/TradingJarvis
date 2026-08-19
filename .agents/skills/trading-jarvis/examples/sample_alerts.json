@@ -1,0 +1,26 @@
+{
+  "signal_example": {
+    "symbol": "XAUUSD",
+    "action": "BUY",
+    "entry_price": 2350.25,
+    "stop_loss": 2342.00,
+    "take_profit": 2366.75,
+    "strategy": "Trend Pullback Engine",
+    "timeframe": "M15",
+    "risk_reward": "1:2.00"
+  },
+  "risk_example": {
+    "level": "Critical",
+    "metric_name": "Daily Drawdown Limit",
+    "current_value": "-$2,850.00 (-2.85%)",
+    "threshold": "-$3,000.00 (-3.00%)",
+    "recommendation": "Halting new order execution per risk protocol."
+  },
+  "briefing_example": {
+    "session_name": "New York Opening Bell",
+    "equity": "$100,000.00",
+    "daily_pnl": "+$1,420.50 (+1.42%)",
+    "open_positions": 1,
+    "notes": "US CPI release scheduled in 30 minutes (High Volatility Expected)."
+  }
+}

@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment & Secret Credentials (CRITICAL - DO NOT COMMIT)
+.env
+.env.local
+.env.*.local
+.agents/skills/trading-jarvis/resources/telegram_config.json
+
+# Logs & Runtime
+*.log
+scratch/
+.system_generated/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,15 @@
+{
+  "bot_token": "YOUR_TELEGRAM_BOT_TOKEN_HERE",
+  "chat_id": "YOUR_TELEGRAM_CHAT_ID_HERE",
+  "parse_mode": "HTML",
+  "topics": {
+    "signals": null,
+    "risk_alerts": null,
+    "briefings": null
+  },
+  "risk_thresholds": {
+    "max_daily_loss_pct": 3.0,
+    "max_drawdown_pct": 6.0,
+    "max_open_positions": 5
+  }
+}
