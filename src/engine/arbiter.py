@@ -111,3 +111,24 @@ class SkillArbiter:
 
         logger.info(f"Dispatching [{result.alert_type}] to Telegram...")
         return send_raw_telegram_message(formatted)
+
+    def get_skill(self, name_or_id: str) -> Optional[BaseSkill]:
+        """Finds a skill by name or index."""
+        name_clean = name_or_id.lower().replace("_", "").replace("-", "")
+        for idx, skill in enumerate(self._skills, 1):
+            skill_clean = skill.name.lower().replace("_", "").replace("-", "")
+            if name_clean in [skill_clean, str(idx), f"skill{idx}"]:
+                return skill
+        return None
+
+    def get_skill_status(self, name_or_id: str, state: Optional[MarketState] = None) -> Optional[Dict[str, Any]]:
+        """Returns diagnostic status dictionary for a specific skill."""
+        skill = self.get_skill(name_or_id)
+        if skill:
+            return skill.get_status(state)
+        return None
+
+    def get_all_skill_statuses(self, state: Optional[MarketState] = None) -> List[Dict[str, Any]]:
+        """Returns status for all registered skills."""
+        return [skill.get_status(state) for skill in self._skills]
+

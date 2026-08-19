@@ -232,6 +232,25 @@ def main():
         def status_provider():
             latest_bar = cache.get_latest_bar(symbols[0])
             acc = connector.get_account_info() or {}
+            native_data = connector.get_native_indicators(symbols[0]) or {}
+            mt5_emas = native_data.get("emas", {})
+
+            # Build current market state for deep skill telemetry
+            current_state = None
+            if latest_bar:
+                from src.skills.base_skill import MarketState
+                current_state = MarketState(
+                    symbol=symbols[0],
+                    timestamp=latest_bar.time,
+                    time_str=latest_bar.dt.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                    latest_bar=latest_bar,
+                    cache=cache,
+                    mt5_emas=mt5_emas,
+                    account_info=acc
+                )
+
+            skill_1_status = safety_skill.get_status(current_state)
+
             return {
                 "symbol": symbols[0],
                 "price": f"{latest_bar.close:.2f}" if latest_bar else "N/A",
@@ -239,7 +258,13 @@ def main():
                 "safety_status": safety_skill.last_status_str,
                 "balance": f"${acc.get('balance', 100000):,.2f}",
                 "equity": f"${acc.get('equity', 100000):,.2f}",
-                "skills_count": len(arbiter._skills)
+                "skills_count": len(arbiter._skills),
+                "skill_details": {
+                    "1": skill_1_status,
+                    "safetylock": skill_1_status,
+                    "safetylock_cascade": skill_1_status,
+                    "cascade": skill_1_status
+                }
             }
 
         def on_reboot():

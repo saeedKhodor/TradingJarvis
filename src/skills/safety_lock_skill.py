@@ -191,6 +191,42 @@ class SafetyLockSkill(BaseSkill):
 
         return None
 
+    def get_status(self, state: Optional[MarketState] = None) -> Dict[str, Any]:
+        """Returns deep diagnostic telemetry for Safety Lock cascade state and retest proximity."""
+        data = {
+            "name": self.name,
+            "enabled": self.enabled,
+            "is_locked_in_cash": self.is_locked_in_cash,
+            "status_str": self.last_status_str,
+            "retest_tolerance_pts": self.retest_tolerance_pts,
+            "retest_cooldown_sec": self.retest_cooldown_sec
+        }
+
+        if state:
+            h1_ema9 = state.get_ema("H1")
+            h1_ema21 = state.get_ema("H1_EMA21")
+            h1_ema50 = state.get_ema("H1_EMA50")
+            m30_ema9 = state.get_ema("M30")
+            price = state.price
+
+            data["price"] = price
+            data["h1_ema9"] = h1_ema9
+            data["h1_ema21"] = h1_ema21
+            data["h1_ema50"] = h1_ema50
+            data["m30_ema9"] = m30_ema9
+
+            # Cascade condition check
+            is_cascade = self.check_cascade_condition(state)
+            data["cascade_active"] = is_cascade
+
+            # Proximity calculations
+            if h1_ema9:
+                data["dist_to_h1_9"] = round(price - h1_ema9, 2)
+            if m30_ema9:
+                data["dist_to_m30_9"] = round(price - m30_ema9, 2)
+
+        return data
+
     def reset(self) -> None:
         """Resets state machine."""
         self.is_locked_in_cash = False

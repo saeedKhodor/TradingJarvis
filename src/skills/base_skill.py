@@ -64,6 +64,14 @@ class BaseSkill(ABC):
         """
         pass
 
+    def get_status(self, state: Optional[MarketState] = None) -> Dict[str, Any]:
+        """Returns diagnostic status and metric values for this skill."""
+        return {
+            "name": self.name,
+            "enabled": self.enabled,
+            "status": "ARMED" if self.enabled else "DISABLED"
+        }
+
     def reset(self) -> None:
         """Resets internal state machines if needed."""
         pass

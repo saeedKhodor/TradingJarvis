@@ -149,6 +149,11 @@ class TelegramCommander:
             self._cmd_help()
         elif clean_cmd in ["skills", "sentinel"]:
             self._cmd_skills()
+        elif clean_cmd in ["skill", "safetylock", "cascade", "lock"]:
+            # Parse skill target if provided (e.g. /skill safetylock or /skill 1)
+            parts = text.split()
+            target = parts[1] if len(parts) > 1 else "safetylock"
+            self._cmd_skill_detail(target)
         else:
             if raw_cmd.startswith("/"):
                 reply = format_jarvis_message(
@@ -165,7 +170,7 @@ class TelegramCommander:
             content=(
                 "<b>Status:</b> <code>RESTARTING ALL SUBSYSTEMS</code>\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                "• Gracefully flushing price buffers & cache.\n"
+                "• Gracefully flushing price buffers &amp; cache.\n"
                 "• Disconnecting MetaTrader 5 IPC channel.\n"
                 "• Re-spawning main daemon process.\n\n"
                 "<i>Sir, standby. Systems will re-initialize in approximately 3 seconds.</i>"
@@ -206,7 +211,7 @@ class TelegramCommander:
         skills_count = status_info.get("skills_count", 1)
 
         body = (
-            f"<b>System State:</b> <code>ONLINE & ARMED</code>\n"
+            f"<b>System State:</b> <code>ONLINE &amp; ARMED</code>\n"
             f"<b>Terminal IPC:</b> {mt5_connected}\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"🎯 <b>Instrument:</b> <code>{symbol}</code>\n"
@@ -229,9 +234,56 @@ class TelegramCommander:
             f"   • Action: Enforces <code>LOCKED IN CASH</code>\n"
             f"   • Retests: H1 9-EMA &amp; 30M 9-EMA\n"
             f"   • Status: 🟢 <code>ARMED</code>\n\n"
-            f"<i>Sir, all specialist skills are actively monitoring market state.</i>"
+            f"💡 <i>Tip: Send <b>/skill 1</b> to query live cascade metrics &amp; distances.</i>"
         )
         reply = format_jarvis_message(title="SKILLS ROSTER", content=body, icon="🏛️")
+        send_raw_telegram_message(reply)
+
+    def _cmd_skill_detail(self, target: str) -> None:
+        """Queries and formats deep diagnostic telemetry for a specific skill."""
+        status_info = self.status_provider() if self.status_provider else {}
+        skill_data = status_info.get("skill_details", {}).get(target.lower(), {}) if status_info else {}
+
+        # Default SafetyLock values if status_provider provided top-level
+        price_val = status_info.get("price", "7698.00")
+        is_locked = status_info.get("safety_status") == "LOCKED_IN_CASH"
+        state_icon = "🚨" if is_locked else "🟢"
+        state_text = "LOCKED IN CASH" if is_locked else "ARMED (NORMAL MARKET)"
+
+        h1_ema9 = skill_data.get("h1_ema9")
+        h1_ema21 = skill_data.get("h1_ema21")
+        h1_ema50 = skill_data.get("h1_ema50")
+        m30_ema9 = skill_data.get("m30_ema9")
+
+        h1_9_str = f"<code>{h1_ema9:.2f}</code>" if h1_ema9 else "<code>N/A</code>"
+        h1_21_str = f"<code>{h1_ema21:.2f}</code>" if h1_ema21 else "<code>N/A</code>"
+        h1_50_str = f"<code>{h1_ema50:.2f}</code>" if h1_ema50 else "<code>N/A</code>"
+        m30_9_str = f"<code>{m30_ema9:.2f}</code>" if m30_ema9 else "<code>N/A</code>"
+
+        dist_h1 = skill_data.get("dist_to_h1_9")
+        dist_m30 = skill_data.get("dist_to_m30_9")
+        dist_h1_str = f" (Dist: {dist_h1:+.2f} pts)" if dist_h1 is not None else ""
+        dist_m30_str = f" (Dist: {dist_m30:+.2f} pts)" if dist_m30 is not None else ""
+
+        cascade_active = skill_data.get("cascade_active", False)
+        cascade_icon = "🚨" if cascade_active else "✅"
+        cascade_text = "ACTIVE (BEARISH CASCADE)" if cascade_active else "INACTIVE (NO CASCADE)"
+
+        body = (
+            f"<b>Skill Diagnostic:</b> <code>SafetyLock_Cascade (SKILL-01)</code>\n"
+            f"<b>Current State:</b> {state_icon} <code>{state_text}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎯 <b>Price:</b> <code>{price_val}</code>\n\n"
+            f"🏛️ <b>Cascade Indicator Levels:</b>\n"
+            f"• H1 9-EMA : {h1_9_str}{dist_h1_str}\n"
+            f"• H1 21-EMA: {h1_21_str}\n"
+            f"• H1 50-EMA: {h1_50_str}\n"
+            f"• 30M 9-EMA: {m30_9_str}{dist_m30_str}\n\n"
+            f"⚖️ <b>Cascade Condition:</b> {cascade_icon} <code>{cascade_text}</code>\n"
+            f"🎯 <b>Retest Tolerance:</b> <code>±2.0 pts</code>\n\n"
+            f"<i>Sir, Safety Lock is actively guarding capital against H1 cascades.</i>"
+        )
+        reply = format_jarvis_message(title="SKILL TELEMETRY", content=body, icon="🛡️")
         send_raw_telegram_message(reply)
 
     def _cmd_help(self) -> None:
@@ -239,9 +291,10 @@ class TelegramCommander:
         body = (
             f"<b>Available Telegram Directives:</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"• <b>/reboot</b> - Safely restarts J.A.R.V.I.S. daemon.\n"
-            f"• <b>/status</b> - Queries live MT5 price, equity, & lock state.\n"
+            f"• <b>/status</b> - Live US500 price, equity, &amp; lock state.\n"
             f"• <b>/skills</b> - Displays active trading skills roster.\n"
+            f"• <b>/skill 1</b> - Detailed telemetry &amp; EMA distances for Skill 01.\n"
+            f"• <b>/reboot</b> - Safely restarts J.A.R.V.I.S. daemon.\n"
             f"• <b>/ping</b> - Diagnostic heartbeat check.\n"
             f"• <b>/help</b> - Displays this directive menu.\n\n"
             f"<i>At your command, sir.</i>"
