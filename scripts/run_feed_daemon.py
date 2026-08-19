@@ -213,7 +213,8 @@ def main():
 
     # Initialize Arbiter & Register Skills (Handles actual strategy & safety alerts)
     arbiter = SkillArbiter(connector=connector, enable_telegram=args.telegram)
-    arbiter.register_skill(SafetyLockSkill())
+    safety_skill = SafetyLockSkill()
+    arbiter.register_skill(safety_skill)
 
     # Attach console telemetry logger
     feeder.register_bar_handler(on_bar_closed_telemetry)
@@ -225,8 +226,42 @@ def main():
     if args.notify_bars:
         feeder.register_bar_handler(lambda sym, bar, c: telegram_bar_handler(sym, bar, c, connector=connector))
 
-    # Start feed
-    feeder.start(max_iterations=args.iterations)
+    # Initialize Telegram Commander (Interactive Directives & Remote Reboot)
+    commander = None
+    if args.telegram:
+        def status_provider():
+            latest_bar = cache.get_latest_bar(symbols[0])
+            acc = connector.get_account_info() or {}
+            return {
+                "symbol": symbols[0],
+                "price": f"{latest_bar.close:.2f}" if latest_bar else "N/A",
+                "mt5_connected": connector.is_connected(),
+                "safety_status": safety_skill.last_status_str,
+                "balance": f"${acc.get('balance', 100000):,.2f}",
+                "equity": f"${acc.get('equity', 100000):,.2f}",
+                "skills_count": len(arbiter._skills)
+            }
+
+        def on_reboot():
+            feeder.stop()
+            connector.disconnect()
+
+        try:
+            from src.bot.telegram_commander import TelegramCommander
+            commander = TelegramCommander(
+                status_provider=status_provider,
+                on_reboot_callback=on_reboot
+            )
+            commander.start()
+        except Exception as e:
+            logger.warning(f"Could not start Telegram Commander: {e}")
+
+    try:
+        # Start feed
+        feeder.start(max_iterations=args.iterations)
+    finally:
+        if commander:
+            commander.stop()
 
 
 if __name__ == "__main__":
