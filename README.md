@@ -1,6 +1,6 @@
 # TradingJarvis 🛡️⚡
 
-**J.A.R.V.I.S. Automated Trading Assistant & Telegram Telemetry Subsystem**
+**J.A.R.V.I.S. Automated Multi-Skill Quantitative Trading Assistant & Telegram Sentinel**
 
 > *"At your service, sir. All trading systems nominal."*
 
@@ -8,7 +8,19 @@
 
 ## 📌 Overview
 
-**TradingJarvis** is a portable, modular AI trading assistant and telemetry pipeline engineered to monitor quantitative trading strategies, enforce risk management protocols, and dispatch real-time, highly structured alerts directly to your Telegram channels.
+**TradingJarvis** is a portable, modular AI trading assistant and telemetry pipeline engineered to monitor quantitative market data from MetaTrader 5, evaluate specialized trading skills in real time, enforce risk protocols, and dispatch actionable, structured alerts to your Telegram bot ([`@RSRstrategy_bot`](https://t.me/RSRstrategy_bot)).
+
+---
+
+## 🏛️ Active Skills Roster
+
+All specialist skills inherit from [`BaseSkill`](./src/skills/base_skill.py) and are coordinated by the [`SkillArbiter`](./src/engine/arbiter.py):
+
+| Skill ID | Skill Name | Timeframe | Condition / Directives | Telegram Alerts |
+| :--- | :--- | :--- | :--- | :--- |
+| **SKILL-01** | **`SafetyLock_Cascade`** | H1, M30, M1 | $\text{H1 Close} < \text{H1 9-EMA} < \text{H1 21-EMA} < \text{H1 50-EMA}$<br/>Enforces **`LOCKED IN CASH`** mode. | `🚨 SAFETY LOCK ENGAGED`<br/>`⚠️ CASCADE RETEST: H1 9-EMA`<br/>`⚠️ CASCADE RETEST: 30M 9-EMA`<br/>`🟢 SAFETY LOCK RELEASED` |
+
+*See full specifications in the [Master Skills Registry](./docs/skills_registry.md).*
 
 ---
 
@@ -19,73 +31,50 @@ TradingJarvis/
 ├── .agents/
 │   └── skills/
 │       └── trading-jarvis/
-│           ├── SKILL.md                          # J.A.R.V.I.S. Persona & Skill Triggers
+│           ├── SKILL.md                          # J.A.R.V.I.S. Persona & Skill Rules
 │           ├── scripts/
 │           │   ├── telegram_notifier.py          # Core Telegram Bot API Dispatcher
-│           │   └── test_alert.py                 # Diagnostic Connectivity Test
-│           ├── references/
-│           │   ├── alert_templates.md            # Standard alert schemas (HTML/Markdown)
-│           │   └── telegram_setup.md             # BotFather & Chat ID setup guide
-│           ├── examples/
-│           │   └── sample_alerts.json            # Sample event payloads
-│           └── resources/
-│               ├── telegram_config.template.json # Configuration template
-│               └── telegram_config.json          # Active credentials (git-ignored)
+│           │   └── test_alert.py                 # Diagnostic Connectivity Tester
+│           ├── references/                       # Schema templates & setup guides
+│           └── resources/                        # Credential templates
+├── config/                                       # Active & template trading configs
 ├── docs/
-│   └── architecture.md                           # System design & task specifications
-├── .env.example                                  # Environment variables template
-├── .gitignore                                    # Secret & artifact protection
-└── README.md                                     # Project overview & portable onboarding
+│   ├── architecture.md                           # System architecture & task matrix
+│   ├── mt5_price_feed.md                         # MT5 data ingestion documentation
+│   ├── skills_registry.md                        # Master skills and features registry
+│   └── session_logs/                             # Session logs & conversation backups
+├── mql5/
+│   └── TradingJarvisBridge.mq5                   # Native MT5 Multi-Timeframe EMA Bridge
+├── src/
+│   ├── feed/                                     # MT5Connector, PriceCache, PriceFeeder
+│   ├── skills/                                   # BaseSkill & Specialist Skills (SafetyLock)
+│   └── engine/                                   # Central SkillArbiter Engine
+├── scripts/
+│   └── run_feed_daemon.py                        # Main CLI Runner & Telemetry Dispatcher
+├── tests/
+│   └── test_safety_lock_skill.py                 # Unit Test Suite
+├── run_jarvis.bat                                # Windows One-Click UTF-8 Launcher
+└── README.md
 ```
 
 ---
 
-## ⚙️ Core J.A.R.V.I.S. Tasks & Capabilities
+## 🚀 Quick Start & One-Click Execution
 
-1. **📈 Signal Telemetry (`SIGNAL_ALERT`)**:
-   - Parses quantitative trade triggers (Instrument, Entry, Stop Loss, Take Profit, R:R).
-   - Computes expected lot size & risk parameters before dispatching.
-
-2. **⚡ Order & Execution Auditing (`ORDER_EXECUTED` / `POSITION_CLOSED`)**:
-   - Real-time notification of trade fills, slippage, latency, and profit/loss outcomes.
-
-3. **🚨 Proactive Risk Management (`RISK_BREACH`)**:
-   - Monitors daily drawdown limits, maximum exposure, and hard account loss thresholds.
-   - Issues immediate defensive advisories when risk boundaries are approached.
-
-4. **🌐 Market Session Briefings (`SESSION_BRIEFING`)**:
-   - Delivers pre-market London/New York intelligence briefings and economic calendar warnings.
-
-5. **⚙️ Health & Telemetry Diagnostics (`SYSTEM_HEALTH`)**:
-   - Regular heartbeats to ensure broker connection, latency, and data integrity.
-
----
-
-## 🚀 Portability & Quick Setup on Any Machine
-
-To clone and run TradingJarvis on any device:
-
-### 1. Clone the Repository
-```bash
-git clone <YOUR_GITHUB_REPO_URL> TradingJarvis
-cd TradingJarvis
-```
-
-### 2. Configure Credentials
+### 1. Configure Credentials
 Copy the template configuration:
 ```bash
 cp .agents/skills/trading-jarvis/resources/telegram_config.template.json .agents/skills/trading-jarvis/resources/telegram_config.json
 ```
-Edit `telegram_config.json` with your `@BotFather` bot token and numeric Telegram `chat_id`.
+Insert your Telegram `bot_token` and `chat_id`.
 
-Alternatively, use environment variables:
-```bash
-cp .env.example .env
-```
+### 2. Attach Native Bridge in MT5
+- In MetaTrader 5 Navigator, drag **`TradingJarvisBridge`** onto your **`US500.cash`** chart.
 
-### 3. Run Diagnostic Self-Test
-```bash
-python .agents/skills/trading-jarvis/scripts/test_alert.py
+### 3. Launch J.A.R.V.I.S.
+Double-click [**`run_jarvis.bat`**](./run_jarvis.bat) or run:
+```powershell
+python scripts/run_feed_daemon.py --symbols US500.cash --timeframe M1 --telegram
 ```
 
 ---
@@ -93,4 +82,4 @@ python .agents/skills/trading-jarvis/scripts/test_alert.py
 ## 🔒 Security Protocol
 
 - **Never commit `.env` or `telegram_config.json`** containing live Telegram Bot tokens.
-- All credential files are strictly blocked in `.gitignore`.
+- All credential files are strictly excluded via `.gitignore`.
