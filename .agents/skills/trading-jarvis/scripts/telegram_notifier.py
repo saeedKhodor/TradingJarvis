@@ -242,9 +242,10 @@ def send_bar_telemetry(
     volume: int,
     spread: int,
     ema: Optional[float] = None,
-    atr: Optional[float] = None
+    atr: Optional[float] = None,
+    mt5_emas: Optional[Dict[str, float]] = None
 ) -> bool:
-    """Formats and dispatches a 1-minute candlestick price telemetry alert."""
+    """Formats and dispatches a 1-minute candlestick price and MT5 native indicator alert."""
     is_bull = close_p > open_p
     is_bear = close_p < open_p
     dir_icon = "🟢" if is_bull else ("🔴" if is_bear else "⚪")
@@ -264,11 +265,25 @@ def send_bar_telemetry(
         f"📈 <b>High:</b> <code>{high_p:.2f}</code> | 📉 <b>Low:</b> <code>{low_p:.2f}</code>\n"
         f"📏 <b>Range:</b> <code>{range_pts:.2f} pts</code> | <b>Body:</b> <code>{body_pts:.2f} pts</code>\n"
         f"📊 <b>Tick Vol:</b> <code>{volume}</code> | <b>Spread:</b> <code>{spread} pts</code>\n"
-        f"⚡ <b>EMA(14):</b> {ema_str} | <b>ATR(14):</b> {atr_str}"
     )
 
+    if mt5_emas and isinstance(mt5_emas, dict):
+        body += f"\n🏛️ <b>MT5 Native 9-EMA Ribbon:</b>\n"
+        # Format pairs of timeframes
+        tf_list = ["M1", "M2", "M5", "M10", "M15", "M30", "H1", "H4", "D1"]
+        lines = []
+        for tf in tf_list:
+            if tf in mt5_emas:
+                val = mt5_emas[tf]
+                # Check price relation
+                pos_icon = "🔼" if close_p >= val else "🔽"
+                lines.append(f"• <b>{tf}:</b> <code>{val:.2f}</code> {pos_icon}")
+        body += "\n".join(lines)
+    else:
+        body += f"⚡ <b>EMA(14):</b> {ema_str} | <b>ATR(14):</b> {atr_str}"
+
     message = format_jarvis_message(
-        title=f"M1 PRICE FEED [{symbol}]",
+        title=f"M1 PRICE & 9-EMA FEED [{symbol}]",
         content=body,
         icon="📊"
     )

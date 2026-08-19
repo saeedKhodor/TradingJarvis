@@ -1,13 +1,14 @@
 # === CODE INDEX ===
-# 1. Imports & Constants (Line 16)
-# 2. MT5Connector.__init__() - Initializes connector state and config (Line 36)
-# 3. MT5Connector.connect() - Initializes MT5 terminal connection and logs in if needed (Line 60)
-# 4. MT5Connector.disconnect() - Shuts down MT5 IPC connection (Line 106)
-# 5. MT5Connector.is_connected() - Verifies active terminal connection status (Line 119)
-# 6. MT5Connector.get_account_info() - Retrieves account equity, balance, leverage (Line 132)
-# 7. MT5Connector.ensure_symbol() - Selects symbol in Market Watch (Line 153)
-# 8. MT5Connector.get_rates() - Fetches OHLCV rates for a symbol & timeframe (Line 175)
-# 9. MT5Connector.get_current_tick() - Retrieves real-time bid, ask, and spread (Line 216)
+# 1. Imports & Constants (Line 18)
+# 2. MT5Connector.__init__() - Initializes connector state and config (Line 50)
+# 3. MT5Connector.connect() - Initializes MT5 terminal connection and logs in if needed (Line 74)
+# 4. MT5Connector.disconnect() - Shuts down MT5 IPC connection (Line 120)
+# 5. MT5Connector.is_connected() - Verifies active terminal connection status (Line 133)
+# 6. MT5Connector.get_account_info() - Retrieves account equity, balance, leverage (Line 146)
+# 7. MT5Connector.ensure_symbol() - Selects symbol in Market Watch (Line 167)
+# 8. MT5Connector.get_rates() - Fetches OHLCV rates for a symbol & timeframe (Line 189)
+# 9. MT5Connector.get_current_tick() - Retrieves real-time bid, ask, and spread (Line 230)
+# 10. MT5Connector.get_native_indicators() - Ingests native MT5 9-EMA buffers from Common Files (Line 258)
 # =================
 
 import os
@@ -221,3 +222,41 @@ class MT5Connector:
             "volume": int(tick.volume),
             "spread_points": round(spread, 1)
         }
+
+    def get_common_files_path(self) -> Optional[str]:
+        """Returns the MT5 Common/Files directory path."""
+        t_info = self.get_terminal_info()
+        if t_info and "commondata_path" in t_info:
+            return os.path.join(t_info["commondata_path"], "Files")
+        # Standard fallback path on Windows
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return os.path.join(appdata, "MetaQuotes", "Terminal", "Common", "Files")
+        return None
+
+    def get_native_indicators(self, symbol: str) -> Optional[Dict[str, Any]]:
+        """
+        Reads native 9-EMA indicator buffer data directly exported by TradingJarvisBridge in MT5.
+        """
+        common_files = self.get_common_files_path()
+        if not common_files or not os.path.exists(common_files):
+            return None
+
+        # Look for symbol-specific file first, then general file
+        sym_file = os.path.join(common_files, f"jarvis_indicators_{symbol}.json")
+        gen_file = os.path.join(common_files, "jarvis_indicators.json")
+
+        target_file = sym_file if os.path.exists(sym_file) else (gen_file if os.path.exists(gen_file) else None)
+        if not target_file:
+            return None
+
+        try:
+            with open(target_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if data.get("symbol") == symbol or not symbol:
+                    return data
+        except Exception as e:
+            logger.debug(f"Failed to read native indicators from {target_file}: {e}")
+
+        return None
+

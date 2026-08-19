@@ -14,6 +14,7 @@ import time
 import argparse
 import logging
 from datetime import datetime
+from typing import Optional, Dict, List, Any
 
 # Add project root to sys.path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,8 +43,8 @@ logging.basicConfig(
 logger = logging.getLogger("TradingJarvis.FeedRunner")
 
 
-def telegram_bar_handler(symbol: str, bar: CandleBar, cache: PriceCache) -> None:
-    """Dispatches a structured Telegram alert on each completed candlestick bar."""
+def telegram_bar_handler(symbol: str, bar: CandleBar, cache: PriceCache, connector: Optional[MT5Connector] = None) -> None:
+    """Dispatches a structured Telegram alert on each completed candlestick bar with MT5 native EMAs."""
     if not TELEGRAM_AVAILABLE:
         logger.warning("Telegram notifier module is not available.")
         return
@@ -51,6 +52,14 @@ def telegram_bar_handler(symbol: str, bar: CandleBar, cache: PriceCache) -> None
     ema_14 = cache.get_ema(symbol, period=14)
     atr_14 = cache.get_atr(symbol, period=14)
     time_str = bar.dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # Read MT5 native indicators if connector is available
+    mt5_emas = None
+    if connector:
+        native_data = connector.get_native_indicators(symbol)
+        if native_data and "emas" in native_data:
+            mt5_emas = native_data["emas"]
+            logger.info(f"Retrieved {len(mt5_emas)} native MT5 EMA values for [{symbol}]")
 
     logger.info(f"Transmitting Telegram M1 telemetry for [{symbol}] @ {time_str}...")
     success = send_bar_telemetry(
@@ -64,7 +73,8 @@ def telegram_bar_handler(symbol: str, bar: CandleBar, cache: PriceCache) -> None
         volume=bar.tick_volume,
         spread=bar.spread,
         ema=ema_14,
-        atr=atr_14
+        atr=atr_14,
+        mt5_emas=mt5_emas
     )
     if success:
         logger.info(f"[J.A.R.V.I.S.] Telegram telemetry for [{symbol}] delivered successfully.")
@@ -153,7 +163,7 @@ def run_test_bar_alert(symbol: str = "US500.cash") -> bool:
     print(f"    Open: {latest_closed_bar.open:.2f} | High: {latest_closed_bar.high:.2f} | Low: {latest_closed_bar.low:.2f} | Close: {latest_closed_bar.close:.2f}")
 
     print(f"\n[*] Transmitting J.A.R.V.I.S. 1-Minute Telegram Telemetry Alert...")
-    telegram_bar_handler(symbol, latest_closed_bar, cache)
+    telegram_bar_handler(symbol, latest_closed_bar, cache, connector=connector)
     connector.disconnect()
     return True
 
@@ -195,7 +205,7 @@ def main():
 
     # Attach Telegram alert handler if enabled
     if args.telegram:
-        feeder.register_bar_handler(telegram_bar_handler)
+        feeder.register_bar_handler(lambda sym, bar, c: telegram_bar_handler(sym, bar, c, connector=connector))
 
     # Start feed
     feeder.start(max_iterations=args.iterations)
