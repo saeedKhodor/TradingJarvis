@@ -2,6 +2,7 @@
   "bot_token": "YOUR_TELEGRAM_BOT_TOKEN_HERE",
   "chat_id": "YOUR_TELEGRAM_CHAT_ID_HERE",
   "parse_mode": "HTML",
+  "bot_name": "J.A.R.V.I.S.",
   "topics": {
     "signals": null,
     "risk_alerts": null,
