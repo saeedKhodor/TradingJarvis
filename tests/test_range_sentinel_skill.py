@@ -1,8 +1,8 @@
 # === CODE INDEX ===
 # 1. Imports & Test Setup (Line 15)
 # 2. test_4h_and_1h_range_detection() - Tests 4H and 1H range mathematical detection (Line 30)
-# 3. test_ceiling_and_floor_alerts() - Tests location boundary alerts (Line 75)
-# 4. main() - Runs all unit tests (Line 120)
+# 3. test_range_formed_and_ceiling_alerts() - Tests new range formation + boundary alerts (Line 60)
+# 4. main() - Runs all unit tests (Line 115)
 # =================
 
 import os
@@ -17,7 +17,7 @@ sys.path.insert(0, BASE_DIR)
 
 from src.feed.price_cache import PriceCache, CandleBar
 from src.skills.base_skill import MarketState
-from src.skills.range_sentinel_skill import RangeSentinelSkill
+from src.skills.range_sentinel_skill import RangeSentinelSkill, TimeframeRangeData
 
 
 class TestRangeSentinelSkill(unittest.TestCase):
@@ -28,7 +28,6 @@ class TestRangeSentinelSkill(unittest.TestCase):
 
     def test_4h_and_1h_range_detection(self):
         """Test mathematical range detection across alternating bars."""
-        # Create 10 alternating 1H bars inside a 20-point box (7650 to 7670)
         dates = [datetime(2026, 8, 20, 0, 0) + timedelta(hours=i) for i in range(10)]
         data = []
         for i, dt in enumerate(dates):
@@ -45,10 +44,8 @@ class TestRangeSentinelSkill(unittest.TestCase):
         self.assertLessEqual(res_1h.range_span_pts, 25.0)
         print(f"[+] Test 1 Passed: 1H Range successfully detected (Score: {res_1h.range_score}/100, Flip Rate: {res_1h.flip_rate_pct:.0f}%).")
 
-    def test_ceiling_and_floor_alerts(self):
-        """Test Ceiling Test Alert at >= 85% location and Floor Test at <= 15%."""
-        # Setup simulated range data in skill
-        from src.skills.range_sentinel_skill import TimeframeRangeData
+    def test_range_formed_and_ceiling_alerts(self):
+        """Test New Range Formation Alert followed by Ceiling Test Alert."""
         self.skill.latest_ranges["1H"] = TimeframeRangeData(
             timeframe="1-Hour (1H)",
             is_range=True,
@@ -65,20 +62,26 @@ class TestRangeSentinelSkill(unittest.TestCase):
             duration_hours=8.0
         )
 
-        bar_ceiling = CandleBar(time=1700000000, open=7667.0, high=7669.0, low=7666.0, close=7668.0, tick_volume=10, spread=50)
-        state_ceiling = MarketState(
+        bar = CandleBar(time=1700000000, open=7667.0, high=7669.0, low=7666.0, close=7668.0, tick_volume=10, spread=50)
+        state = MarketState(
             symbol="US500.cash",
-            timestamp=bar_ceiling.time,
+            timestamp=bar.time,
             time_str="2026-08-21 14:00:00 UTC",
-            latest_bar=bar_ceiling,
+            latest_bar=bar,
             cache=self.cache
         )
 
-        res_alert = self.skill.evaluate(state_ceiling)
-        self.assertIsNotNone(res_alert)
-        self.assertEqual(res_alert.alert_type, "RANGE_CEILING_TEST")
-        self.assertEqual(res_alert.severity, "WARNING")
-        print("[+] Test 2 Passed: Range Ceiling Alert triggered at 90% premium location.")
+        # 1. First evaluation: Detects brand NEW range establishment
+        res_formed = self.skill.evaluate(state)
+        self.assertIsNotNone(res_formed)
+        self.assertEqual(res_formed.alert_type, "RANGE_FORMED")
+        print("[+] Test 2A Passed: Automatic 'NEW RANGE ESTABLISHED' notification triggered.")
+
+        # 2. Second evaluation: Since range is already established, triggers Ceiling Test Alert
+        res_ceiling = self.skill.evaluate(state)
+        self.assertIsNotNone(res_ceiling)
+        self.assertEqual(res_ceiling.alert_type, "RANGE_CEILING_TEST")
+        print("[+] Test 2B Passed: Automatic 'RANGE CEILING TEST' boundary alert triggered.")
 
 
 if __name__ == "__main__":

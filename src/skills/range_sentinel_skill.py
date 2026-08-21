@@ -2,10 +2,10 @@
 # 1. Imports & Constants (Line 18)
 # 2. TimeframeRangeData - Dataclass for per-timeframe range state (Line 35)
 # 3. RangeSentinelSkill.__init__() - Initializes multi-timeframe thresholds (Line 60)
-# 4. RangeSentinelSkill.analyze_timeframe() - Core mathematical range & entropy engine (Line 85)
-# 5. RangeSentinelSkill.scan_all_timeframes() - Scans 4H, 1H, 30M, 15M, 5M (Line 160)
-# 6. RangeSentinelSkill.evaluate() - Arbiter callback & alert dispatcher (Line 210)
-# 7. RangeSentinelSkill.format_telegram_report() - Generates executive Telegram range map (Line 265)
+# 4. RangeSentinelSkill.analyze_timeframe() - Core mathematical range & entropy engine (Line 90)
+# 5. RangeSentinelSkill.scan_all_timeframes() - Scans 4H, 1H, 30M, 15M, 5M (Line 170)
+# 6. RangeSentinelSkill.evaluate() - Arbiter callback & alert dispatcher (Line 220)
+# 7. RangeSentinelSkill.format_telegram_report() - Generates executive Telegram range map (Line 330)
 # =================
 
 import time
@@ -44,12 +44,16 @@ class RangeSentinelSkill(BaseSkill):
     """
     Quantitative Multi-Timeframe Range & Entropy Sentinel (SKILL-04).
     Monitors 4H, 1H, 30M, 15M, and 5M compression regimes, boundary variance,
-    and dispatches actionable alerts at range extremes.
+    and dispatches automatic notifications when:
+    1. A NEW range forms on any timeframe.
+    2. Price tests the Range Ceiling (>= 85%).
+    3. Price tests the Range Floor (<= 15%).
+    4. A Range breaks out into directional expansion.
     """
 
     def __init__(
         self,
-        alert_cooldown_sec: int = 900,  # 15 min cooldown per alert
+        alert_cooldown_sec: int = 900,  # 15 min cooldown per boundary alert
         enabled: bool = True
     ):
         super().__init__(name="RangeSentinelSkill", enabled=enabled)
@@ -66,6 +70,7 @@ class RangeSentinelSkill(BaseSkill):
         }
 
         self.latest_ranges: Dict[str, TimeframeRangeData] = {}
+        self.range_active_state: Dict[str, bool] = {tf: False for tf in self.tf_configs.keys()}
 
     def analyze_timeframe(self, df: pd.DataFrame, tf_key: str) -> TimeframeRangeData:
         """Computes mathematical range metrics for a specific timeframe DataFrame."""
@@ -117,7 +122,7 @@ class RangeSentinelSkill(BaseSkill):
 
         is_range = (score >= 60) and (range_span <= (max_span * 1.15))
 
-        # Calculate approximate duration
+        # Calculate duration
         start_dt = recent.iloc[0]["dt"]
         end_dt   = recent.iloc[-1]["dt"]
         duration_hrs = (end_dt - start_dt).total_seconds() / 3600.0
@@ -168,66 +173,124 @@ class RangeSentinelSkill(BaseSkill):
         return results
 
     def evaluate(self, state: MarketState) -> Optional[SkillResult]:
-        """Evaluates live market state for range boundary alerts."""
+        """Evaluates live market state and automatically dispatches range formation & boundary alerts."""
         now = time.time()
         price = state.price
 
-        # Check if 1H or 30M ranges are active in latest scan
-        h1_data = self.latest_ranges.get("1H")
-        if not h1_data or not h1_data.is_range:
-            return None
+        # Check for NEW RANGE ESTABLISHMENT across all timeframes (4H, 1H, 30M, 15M)
+        for tf_key in ["4H", "1H", "30M", "15M"]:
+            tf_data = self.latest_ranges.get(tf_key)
+            if not tf_data:
+                continue
 
-        # 1. Check Ceiling Test Alert (Price >= 85% near Range High)
-        if h1_data.price_location_pct >= 85.0:
-            last_t = self.last_alert_time.get("H1_CEILING", 0)
-            if (now - last_t) >= self.alert_cooldown_sec:
-                self.last_alert_time["H1_CEILING"] = now
+            was_range = self.range_active_state.get(tf_key, False)
+            is_range = tf_data.is_range
+
+            # Transition 1: A brand new range formed
+            if not was_range and is_range:
+                self.range_active_state[tf_key] = True
                 msg = (
-                    f"🔴 *1H RANGE CEILING TEST DETECTED*\n"
+                    f"🏛️ *NEW {tf_data.timeframe.upper()} RANGE ESTABLISHED*\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"📊 *Symbol*: `{state.symbol}` | *Price*: `{price:.2f}`\n"
-                    f"🏛️ *Range Ceiling (Supply)*: `{h1_data.range_high:.2f}`\n"
-                    f"🎯 *Range Floor (Demand)*: `{h1_data.range_low:.2f}`\n"
-                    f"📐 *Range Span*: `{h1_data.range_span_pts:.2f} pts` (Location: *{h1_data.price_location_pct:.1f}%*)\n"
+                    f"📐 *Range Span*: `{tf_data.range_span_pts:.2f} pts` (Quality Score: *{tf_data.range_score}/100*)\n"
+                    f"🏛️ *Range Ceiling (Resistance)*: `{tf_data.range_high:.2f}`\n"
+                    f"🎯 *Range Floor (Support)*: `{tf_data.range_low:.2f}`\n"
+                    f"⏳ *Coiling Duration*: `{tf_data.bar_count} bars` ({tf_data.duration_hours:.1f} Hours)\n"
+                    f"🎲 *Color Flip Rate*: `{tf_data.flip_rate_pct:.0f}%` (Equilibrium active)\n"
                     f"━━━━━━━━━━━━━━━━━━━━━━\n"
                     f"💡 *Tactical Advisory*:\n"
-                    f"• *VETO Long Breakouts* (High probability trap at ceiling).\n"
-                    f"• Watch for M5 bearish rejection wick to fade back toward `{h1_data.range_low:.2f}`."
+                    f"• *VETO Trend Breakouts* inside this box (Chop zone).\n"
+                    f"• Look for boundary sweep fades at `{tf_data.range_high:.2f}` (Short) and `{tf_data.range_low:.2f}` (Long)."
                 )
                 return SkillResult(
                     skill_name=self.name,
-                    alert_type="RANGE_CEILING_TEST",
-                    title=f"🔴 1H RANGE CEILING TEST: {state.symbol}",
+                    alert_type="RANGE_FORMED",
+                    title=f"🏛️ NEW {tf_key} RANGE: {state.symbol}",
+                    message=msg,
+                    should_notify=True,
+                    severity="NOTICE"
+                )
+
+            # Transition 2: A range broke out into expansion
+            elif was_range and not is_range:
+                self.range_active_state[tf_key] = False
+                breakout_dir = "🟢 BULLISH EXPANSION" if price >= tf_data.range_high else "🔴 BEARISH BREAKDOWN"
+                broken_bound = tf_data.range_high if price >= tf_data.range_high else tf_data.range_low
+                msg = (
+                    f"⚡ *{tf_data.timeframe.upper()} RANGE BREAKOUT DETECTED*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📊 *Symbol*: `{state.symbol}` | *Price*: `{price:.2f}`\n"
+                    f"🚀 *Expansion Direction*: *{breakout_dir}*\n"
+                    f"🚪 *Pierced Boundary*: `{broken_bound:.2f}`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"💡 *Tactical Advisory*:\n"
+                    f"• Coiled energy released. Range equilibrium is broken.\n"
+                    f"• Transitioning to Trend-Following and Momentum execution."
+                )
+                return SkillResult(
+                    skill_name=self.name,
+                    alert_type="RANGE_BREAKOUT",
+                    title=f"⚡ {tf_key} RANGE BREAKOUT: {state.symbol}",
                     message=msg,
                     should_notify=True,
                     severity="WARNING"
                 )
 
-        # 2. Check Floor Test Alert (Price <= 15% near Range Low)
-        elif h1_data.price_location_pct <= 15.0:
-            last_t = self.last_alert_time.get("H1_FLOOR", 0)
-            if (now - last_t) >= self.alert_cooldown_sec:
-                self.last_alert_time["H1_FLOOR"] = now
-                msg = (
-                    f"🟢 *1H RANGE FLOOR TEST DETECTED*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 *Symbol*: `{state.symbol}` | *Price*: `{price:.2f}`\n"
-                    f"🏛️ *Range Floor (Demand)*: `{h1_data.range_low:.2f}`\n"
-                    f"🎯 *Range Ceiling (Supply)*: `{h1_data.range_high:.2f}`\n"
-                    f"📐 *Range Span*: `{h1_data.range_span_pts:.2f} pts` (Location: *{h1_data.price_location_pct:.1f}%*)\n"
-                    f"━━━━━━━━━━━━━━━━━━━━━━\n"
-                    f"💡 *Tactical Advisory*:\n"
-                    f"• *VETO Short Breakdowns* (High probability trap at floor).\n"
-                    f"• Watch for M5 bullish hammer wick to fade back toward `{h1_data.range_high:.2f}`."
-                )
-                return SkillResult(
-                    skill_name=self.name,
-                    alert_type="RANGE_FLOOR_TEST",
-                    title=f"🟢 1H RANGE FLOOR TEST: {state.symbol}",
-                    message=msg,
-                    should_notify=True,
-                    severity="NOTICE"
-                )
+        # Boundary Tests on 1H / 30M
+        h1_data = self.latest_ranges.get("1H") or self.latest_ranges.get("30M")
+        if h1_data and h1_data.is_range:
+            # 1. Ceiling Test Alert (Price >= 85% near Range High)
+            if h1_data.price_location_pct >= 85.0:
+                last_t = self.last_alert_time.get("H1_CEILING", 0)
+                if (now - last_t) >= self.alert_cooldown_sec:
+                    self.last_alert_time["H1_CEILING"] = now
+                    msg = (
+                        f"🔴 *{h1_data.timeframe.upper()} RANGE CEILING TEST*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📊 *Symbol*: `{state.symbol}` | *Price*: `{price:.2f}`\n"
+                        f"🏛️ *Range Ceiling (Supply)*: `{h1_data.range_high:.2f}`\n"
+                        f"🎯 *Range Floor (Demand)*: `{h1_data.range_low:.2f}`\n"
+                        f"📐 *Range Span*: `{h1_data.range_span_pts:.2f} pts` (Location: *{h1_data.price_location_pct:.1f}%*)\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"💡 *Tactical Advisory*:\n"
+                        f"• *VETO Long Breakouts* (High probability trap at ceiling).\n"
+                        f"• Watch for M5 bearish rejection wick to fade back toward `{h1_data.range_low:.2f}`."
+                    )
+                    return SkillResult(
+                        skill_name=self.name,
+                        alert_type="RANGE_CEILING_TEST",
+                        title=f"🔴 {h1_data.timeframe} CEILING TEST: {state.symbol}",
+                        message=msg,
+                        should_notify=True,
+                        severity="WARNING"
+                    )
+
+            # 2. Floor Test Alert (Price <= 15% near Range Low)
+            elif h1_data.price_location_pct <= 15.0:
+                last_t = self.last_alert_time.get("H1_FLOOR", 0)
+                if (now - last_t) >= self.alert_cooldown_sec:
+                    self.last_alert_time["H1_FLOOR"] = now
+                    msg = (
+                        f"🟢 *{h1_data.timeframe.upper()} RANGE FLOOR TEST*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📊 *Symbol*: `{state.symbol}` | *Price*: `{price:.2f}`\n"
+                        f"🏛️ *Range Floor (Demand)*: `{h1_data.range_low:.2f}`\n"
+                        f"🎯 *Range Ceiling (Supply)*: `{h1_data.range_high:.2f}`\n"
+                        f"📐 *Range Span*: `{h1_data.range_span_pts:.2f} pts` (Location: *{h1_data.price_location_pct:.1f}%*)\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"💡 *Tactical Advisory*:\n"
+                        f"• *VETO Short Breakdowns* (High probability trap at floor).\n"
+                        f"• Watch for M5 bullish hammer wick to fade back toward `{h1_data.range_high:.2f}`."
+                    )
+                    return SkillResult(
+                        skill_name=self.name,
+                        alert_type="RANGE_FLOOR_TEST",
+                        title=f"🟢 {h1_data.timeframe} FLOOR TEST: {state.symbol}",
+                        message=msg,
+                        should_notify=True,
+                        severity="NOTICE"
+                    )
 
         return None
 
@@ -252,7 +315,6 @@ class RangeSentinelSkill(BaseSkill):
             status_icon = "🟢" if d.is_range else "⚡"
             status_text = "ACTIVE RANGE" if d.is_range else "TREND / EXPANSION"
             
-            # Progress bar visualization (10 segments)
             filled = int(round(d.price_location_pct / 10.0))
             filled = max(0, min(10, filled))
             bar_visual = "▰" * filled + "▱" * (10 - filled)
