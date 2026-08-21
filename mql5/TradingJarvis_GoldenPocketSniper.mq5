@@ -10,25 +10,25 @@
 // 4. OnInit() - Initialization (Line 80)
 // 5. OnDeinit() - Cleanup (Line 125)
 // 6. OnTick() - State Machine & Bar Evaluation (Line 140)
-// 7. ManageOpenPositions() - Partial Close & Breakeven (Line 230)
+// 7. ManageOpenPositions() - 50% Partial Close & Breakeven (Line 230)
 // 8. ExecuteSniperShort() - Order Execution (Line 280)
-// 9. CalculateLotSize() - Position Sizing (Line 320)
+// 9. CalculateLotSize() - Dynamic Account Risk Sizing (Line 320)
 // ==================================================================
 #property copyright   "J.A.R.V.I.S. Trading"
 #property link        "https://github.com/saeedKhodor/TradingJarvis"
-#property version     "2.00"
-#property description "J.A.R.V.I.S. 90% Win-Rate Golden Pocket Sniper EA (Slope Velocity + 1-Trade Episode Throttle)"
+#property version     "2.10"
+#property description "J.A.R.V.I.S. Golden Pocket Sniper EA with Optimized Defaults (Dynamic Risk Sizing + Capped 6.5pt Risk)"
 
 #include <Trade\Trade.mqh>
 #include <Trade\SymbolInfo.mqh>
 #include <Trade\PositionInfo.mqh>
 
-//--- 1. Risk & Money Management Parameters
-input double   InpFixedLot             = 0.1;        // Fixed Lot Size (0.0 = Dynamic Risk %)
+//--- 1. Risk & Money Management Parameters (Optimized Defaults)
+input double   InpFixedLot             = 0.0;        // Fixed Lot Size (0.0 = Dynamic 1% Risk Sizing)
 input double   InpRiskPercent          = 1.0;        // Risk per trade (% of Balance)
-input double   InpTargetRR             = 2.0;        // Target Reward-to-Risk for Runner (R:R)
+input double   InpTargetRR             = 2.5;        // Target Reward-to-Risk for Runner (2.5R)
 input double   InpMinRiskPoints        = 4.0;        // Minimum Stop Loss Floor (Points)
-input double   InpMaxRiskPoints        = 25.0;       // Maximum Stop Loss Cap (Points)
+input double   InpMaxRiskPoints        = 6.5;        // Maximum Stop Loss Cap (Points / Filters wide volatility)
 input double   InpStopBufferPoints     = 1.5;        // Stop Loss Buffer above Rejection High (Pts)
 input bool     InpUsePartialClose      = true;       // Close 50% Volume at +1.0R and move to BE
 input ulong    InpMagicNumber          = 108805;     // EA Magic Number
@@ -49,7 +49,7 @@ input int      InpLondonStartHour      = 7;          // London Morning Start (07
 input int      InpLondonEndHour        = 11;         // London Morning End (11:00 UTC)
 input int      InpNYStartHour          = 13;         // NY Core Start Hour (13 for 13:30 UTC)
 input int      InpNYStartMin           = 30;         // NY Core Start Minute (30)
-input int      InpNYEndHour            = 17;         // NY Core End Hour (17:00 UTC)
+input int      InpNYEndHour            = 17;         // NY Core End Hour (17:00 UTC / Blocks MOC squeeze)
 
 //--- Global Objects & State
 CTrade         m_trade;
@@ -222,6 +222,7 @@ void OnTick()
       double raw_sl = c_high + InpStopBufferPoints;
       double risk_pts = MathMax(raw_sl - c_close, InpMinRiskPoints);
 
+      // Strictly cap risk to InpMaxRiskPoints (6.5 pts default)
       if(risk_pts <= InpMaxRiskPoints)
       {
          double sl_price = NormalizeDouble(c_close + risk_pts, _Digits);
@@ -322,7 +323,7 @@ void ExecuteSniperShort(double entry, double sl, double tp, double risk_pts)
 }
 
 //+------------------------------------------------------------------+
-//| Safe Position Sizing based on Account Risk                       |
+//| Safe Position Sizing based on Dynamic Account Risk %             |
 //+------------------------------------------------------------------+
 double CalculateLotSize(double risk_pts)
 {
