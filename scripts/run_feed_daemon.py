@@ -30,6 +30,7 @@ from src.feed.price_cache import PriceCache, CandleBar
 from src.feed.price_feeder import PriceFeeder
 from src.engine.arbiter import SkillArbiter
 from src.skills.safety_lock_skill import SafetyLockSkill
+from src.skills.pre_market_classifier_skill import PreMarketClassifierSkill
 
 try:
     from telegram_notifier import send_bar_telemetry, load_config
@@ -214,7 +215,9 @@ def main():
     # Initialize Arbiter & Register Skills (Handles actual strategy & safety alerts)
     arbiter = SkillArbiter(connector=connector, enable_telegram=args.telegram)
     safety_skill = SafetyLockSkill()
+    pre_market_skill = PreMarketClassifierSkill(target_pts=5.0)
     arbiter.register_skill(safety_skill)
+    arbiter.register_skill(pre_market_skill)
 
     # Attach console telemetry logger
     feeder.register_bar_handler(on_bar_closed_telemetry)
@@ -250,6 +253,7 @@ def main():
                 )
 
             skill_1_status = safety_skill.get_status(current_state)
+            daily_plan = pre_market_skill.generate_daily_plan(current_state) if current_state else None
 
             return {
                 "symbol": symbols[0],
@@ -259,6 +263,7 @@ def main():
                 "balance": f"${acc.get('balance', 100000):,.2f}",
                 "equity": f"${acc.get('equity', 100000):,.2f}",
                 "skills_count": len(arbiter._skills),
+                "daily_plan": daily_plan,
                 "skill_details": {
                     "1": skill_1_status,
                     "safetylock": skill_1_status,

@@ -149,6 +149,8 @@ class TelegramCommander:
             self._cmd_help()
         elif clean_cmd in ["skills", "sentinel"]:
             self._cmd_skills()
+        elif clean_cmd in ["plan", "harvest", "morning", "daily"]:
+            self._cmd_daily_plan()
         elif clean_cmd in ["skill", "safetylock", "cascade", "lock"]:
             # Parse skill target if provided (e.g. /skill safetylock or /skill 1)
             parts = text.split()
@@ -286,11 +288,52 @@ class TelegramCommander:
         reply = format_jarvis_message(title="SKILL TELEMETRY", content=body, icon="🛡️")
         send_raw_telegram_message(reply)
 
+    def _cmd_daily_plan(self) -> None:
+        """Queries the PreMarketClassifierSkill to generate and transmit the daily 5-pt harvest plan."""
+        status_info = self.status_provider() if self.status_provider else {}
+        daily_plan = status_info.get("daily_plan")
+        
+        if not daily_plan:
+            reply = format_jarvis_message(
+                title="DAILY PLAN GENERATING",
+                content=(
+                    "<b>Status:</b> <code>CALCULATING REGIME PLAYBOOK</code>\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    "• Querying MT5 higher-timeframe indicators.\n"
+                    "• Evaluating Daily &amp; H1 9-EMA slope velocity.\n"
+                    "• Sizing +5.0 point harvest invalidation.\n\n"
+                    "<i>Sir, please stand by while market microstructure is classified.</i>"
+                ),
+                icon="🏛️"
+            )
+            send_raw_telegram_message(reply)
+            return
+
+        body = (
+            f"<b>Mission Goal:</b> <code>Extract +{daily_plan.get('target_pts', 5.0):.1f} Index Points</code>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🧭 <b>Classified Archetype:</b>\n"
+            f"<b>{daily_plan.get('archetype', 'EXPANSION')}</b>\n\n"
+            f"📋 <b>Tactical Playbook:</b>\n"
+            f"• <b>Strategy:</b> {daily_plan.get('action', 'N/A')}\n"
+            f"• <b>Entry Zone:</b> <code>{daily_plan.get('entry_zone', 'N/A')}</code>\n"
+            f"• <b>Invalidation Stop:</b> <code>{daily_plan.get('invalidation_sl', 'N/A')}</code>\n"
+            f"• <b>Harvest Target (+5 Pts):</b> <code>{daily_plan.get('tp_target', 'N/A')}</code>\n"
+            f"• <b>Prime Window:</b> <code>13:45 - 14:30 UTC</code>\n\n"
+            f"🔬 <b>Hedge Fund Thesis:</b>\n"
+            f"<i>{daily_plan.get('key_rationale', '')}</i>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🛡️ <i>Discipline Protocol: Take 1 trade, bank +5.0 pts, and shut down.</i>"
+        )
+        reply = format_jarvis_message(title="DAILY 5-PT HARVEST PLAN", content=body, icon="🏛️")
+        send_raw_telegram_message(reply)
+
     def _cmd_help(self) -> None:
         """Sends command documentation."""
         body = (
             f"<b>Available Telegram Directives:</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"• <b>/plan</b> - Daily +5-Point Harvest Strategy &amp; Regime Classification.\n"
             f"• <b>/status</b> - Live US500 price, equity, &amp; lock state.\n"
             f"• <b>/skills</b> - Displays active trading skills roster.\n"
             f"• <b>/skill 1</b> - Detailed telemetry &amp; EMA distances for Skill 01.\n"
