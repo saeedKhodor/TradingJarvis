@@ -151,6 +151,8 @@ class TelegramCommander:
             self._cmd_skills()
         elif clean_cmd in ["plan", "harvest", "morning", "daily"]:
             self._cmd_daily_plan()
+        elif clean_cmd in ["ranges", "range", "box", "compression"]:
+            self._cmd_ranges()
         elif clean_cmd in ["skill", "safetylock", "cascade", "lock"]:
             # Parse skill target if provided (e.g. /skill safetylock or /skill 1)
             parts = text.split()
@@ -328,11 +330,35 @@ class TelegramCommander:
         reply = format_jarvis_message(title="DAILY 5-PT HARVEST PLAN", content=body, icon="🏛️")
         send_raw_telegram_message(reply)
 
+    def _cmd_ranges(self) -> None:
+        """Queries the RangeSentinelSkill to transmit the multi-timeframe range dashboard."""
+        status_info = self.status_provider() if self.status_provider else {}
+        range_report = status_info.get("range_report")
+        
+        if not range_report:
+            reply = format_jarvis_message(
+                title="RANGE RADAR SCANNING",
+                content=(
+                    "<b>Status:</b> <code>SCANNING MULTI-TIMEFRAME BOXES</code>\n"
+                    "━━━━━━━━━━━━━━━━━━━━\n"
+                    "• Evaluating 4H, 1H, 30M, 15M, and 5M entropy.\n"
+                    "• Calculating boundary variances and ceiling/floor levels.\n\n"
+                    "<i>Sir, please stand by while range matrices are aggregated.</i>"
+                ),
+                icon="🏛️"
+            )
+            send_raw_telegram_message(reply)
+            return
+
+        reply = format_jarvis_message(title="MULTI-TIMEFRAME RANGE RADAR", content=range_report, icon="🧭")
+        send_raw_telegram_message(reply)
+
     def _cmd_help(self) -> None:
         """Sends command documentation."""
         body = (
             f"<b>Available Telegram Directives:</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"• <b>/ranges</b> - Multi-Timeframe (4H, 1H, 30M, 15M, 5M) Range Radar.\n"
             f"• <b>/plan</b> - Daily +5-Point Harvest Strategy &amp; Regime Classification.\n"
             f"• <b>/status</b> - Live US500 price, equity, &amp; lock state.\n"
             f"• <b>/skills</b> - Displays active trading skills roster.\n"

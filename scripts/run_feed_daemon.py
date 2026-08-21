@@ -31,6 +31,7 @@ from src.feed.price_feeder import PriceFeeder
 from src.engine.arbiter import SkillArbiter
 from src.skills.safety_lock_skill import SafetyLockSkill
 from src.skills.pre_market_classifier_skill import PreMarketClassifierSkill
+from src.skills.range_sentinel_skill import RangeSentinelSkill
 
 try:
     from telegram_notifier import send_bar_telemetry, load_config
@@ -216,8 +217,10 @@ def main():
     arbiter = SkillArbiter(connector=connector, enable_telegram=args.telegram)
     safety_skill = SafetyLockSkill()
     pre_market_skill = PreMarketClassifierSkill(target_pts=5.0)
+    range_skill = RangeSentinelSkill()
     arbiter.register_skill(safety_skill)
     arbiter.register_skill(pre_market_skill)
+    arbiter.register_skill(range_skill)
 
     # Attach console telemetry logger
     feeder.register_bar_handler(on_bar_closed_telemetry)
@@ -254,6 +257,14 @@ def main():
 
             skill_1_status = safety_skill.get_status(current_state)
             daily_plan = pre_market_skill.generate_daily_plan(current_state) if current_state else None
+            
+            # Scan ranges on-demand
+            try:
+                range_skill.scan_all_timeframes(connector)
+                range_report = range_skill.format_telegram_report(latest_bar.close if latest_bar else 0.0, symbols[0])
+            except Exception as e:
+                logger.warning(f"Error scanning ranges in status_provider: {e}")
+                range_report = None
 
             return {
                 "symbol": symbols[0],
@@ -264,6 +275,7 @@ def main():
                 "equity": f"${acc.get('equity', 100000):,.2f}",
                 "skills_count": len(arbiter._skills),
                 "daily_plan": daily_plan,
+                "range_report": range_report,
                 "skill_details": {
                     "1": skill_1_status,
                     "safetylock": skill_1_status,
