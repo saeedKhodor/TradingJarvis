@@ -4,15 +4,15 @@
 //|                                https://github.com/saeedKhodor     |
 //+------------------------------------------------------------------+
 // === CODE INDEX ===
-// 1. Properties & Trade Library Includes (Line 22)
-// 2. Input Parameters (Risk, Slope Velocity, Cascade, Sessions) (Line 35)
-// 3. Global State Variables & Indicator Handles (Line 65)
-// 4. OnInit() - Initialization & Handle Creation (Line 90)
-// 5. OnDeinit() - Cleanup (Line 135)
-// 6. OnTick() - State Machine & Bar Evaluation (Line 150)
-// 7. ManageOpenPositions() - 50% Partial Scaling & Breakeven (Line 240)
-// 8. ExecuteSniperShort() - Two-Leg / Position Order Execution (Line 290)
-// 9. CalculateLotSize() - Account Risk Position Sizing (Line 335)
+// 1. Properties & Includes (Line 20)
+// 2. Input Parameters (Line 30)
+// 3. Global State & Indicator Handles (Line 60)
+// 4. OnInit() - Initialization (Line 80)
+// 5. OnDeinit() - Cleanup (Line 125)
+// 6. OnTick() - State Machine & Bar Evaluation (Line 140)
+// 7. ManageOpenPositions() - Partial Close & Breakeven (Line 230)
+// 8. ExecuteSniperShort() - Order Execution (Line 280)
+// 9. CalculateLotSize() - Position Sizing (Line 320)
 // ==================================================================
 #property copyright   "J.A.R.V.I.S. Trading"
 #property link        "https://github.com/saeedKhodor/TradingJarvis"
@@ -23,34 +23,33 @@
 #include <Trade\SymbolInfo.mqh>
 #include <Trade\PositionInfo.mqh>
 
-//--- Input Parameters
-input group "=== Risk & Money Management ==="
+//--- 1. Risk & Money Management Parameters
 input double   InpFixedLot             = 0.1;        // Fixed Lot Size (0.0 = Dynamic Risk %)
 input double   InpRiskPercent          = 1.0;        // Risk per trade (% of Balance)
-input double   InpTargetRR             = 2.0;        // Target Reward-to-Risk for Runner (R:R Ratio)
-input double   InpMinRiskPoints        = 4.0;        // Minimum Stop Loss Floor (Index Points)
-input double   InpMaxRiskPoints        = 25.0;       // Maximum Stop Loss Cap (Index Points)
+input double   InpTargetRR             = 2.0;        // Target Reward-to-Risk for Runner (R:R)
+input double   InpMinRiskPoints        = 4.0;        // Minimum Stop Loss Floor (Points)
+input double   InpMaxRiskPoints        = 25.0;       // Maximum Stop Loss Cap (Points)
 input double   InpStopBufferPoints     = 1.5;        // Stop Loss Buffer above Rejection High (Pts)
-input bool     InpUsePartialClose      = true;       // Close 50% Volume at +1.0R and move to Breakeven
+input bool     InpUsePartialClose      = true;       // Close 50% Volume at +1.0R and move to BE
 input ulong    InpMagicNumber          = 108805;     // EA Magic Number
 
-input group "=== Slope Velocity & Cascade Filters ==="
-input double   InpMinDownwardSlopePts  = 3.0;        // Minimum H1 9-EMA Downward Slope (Pts over 3 bars)
-input double   InpMinEMASeparationPts  = 4.0;        // Minimum Separation between H1 21-EMA & 9-EMA (Pts)
+//--- 2. Slope Velocity & Cascade Filters
+input double   InpMinDownwardSlopePts  = 3.0;        // Min H1 9-EMA Downward Slope (Pts over 3 bars)
+input double   InpMinEMASeparationPts  = 4.0;        // Min Separation between H1 21-EMA & 9-EMA (Pts)
 input bool     InpUseDailyMacroFilter  = true;       // Require Price < D1 9-EMA Confluence
-input int      InpMaxTradesPerCascade  = 1;          // Maximum Trades Allowed per Cascade Episode (1 or 2)
+input int      InpMaxTradesPerCascade  = 1;          // Max Trades per Cascade Episode (1 or 2)
 
-input group "=== Rejection Filters ==="
+//--- 3. Rejection Filters
 input double   InpTolerancePoints      = 2.5;        // Tolerance zone around H1 9-EMA (Pts)
 input double   InpMinUpperWickRatio    = 0.30;       // Min Upper Wick Ratio (0.30 = 30% Pinbar)
 
-input group "=== Prime Session Windows (UTC) ==="
+//--- 4. Prime Session Windows (UTC)
 input bool     InpUseSessionFilter     = true;       // Enable Session Quarantine Filter
 input int      InpLondonStartHour      = 7;          // London Morning Start (07:00 UTC)
 input int      InpLondonEndHour        = 11;         // London Morning End (11:00 UTC)
 input int      InpNYStartHour          = 13;         // NY Core Start Hour (13 for 13:30 UTC)
 input int      InpNYStartMin           = 30;         // NY Core Start Minute (30)
-input int      InpNYEndHour            = 17;         // NY Core End Hour (17:00 UTC / Disallow late close)
+input int      InpNYEndHour            = 17;         // NY Core End Hour (17:00 UTC)
 
 //--- Global Objects & State
 CTrade         m_trade;
