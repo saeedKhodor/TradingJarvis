@@ -142,51 +142,116 @@ class SafetyLockSkill(BaseSkill):
                 metadata={"state": "NORMAL", "price": state.price}
             )
 
-        # --- Sub-Events: Price Retests H1 9-EMA or 30M 9-EMA while in Cascade
+        # --- Sub-Events: Price Retests H1 9-EMA or 30M 9-EMA while in Cascade (Golden Pocket Short Setup)
         if self.is_locked_in_cash:
+            candle_range = bar.high - bar.low
+            upper_wick = bar.high - max(bar.open, bar.close)
+            is_bear_rejection = (upper_wick / candle_range >= 0.25) if candle_range > 0.5 else (bar.close < bar.open)
+
             # Check H1 9-EMA Retest
             if h1_ema9 and self.check_ema_interaction(bar.high, bar.low, h1_ema9):
                 if current_time - self.last_h1_retest_alert >= self.retest_cooldown_sec:
                     self.last_h1_retest_alert = current_time
+
+                    entry_p = bar.close
+                    sl_p = round(bar.high + 1.5, 2)
+                    risk_pts = max(round(sl_p - entry_p, 2), 3.5)
+                    tp1_p = round(entry_p - (risk_pts * 2.0), 2)
+                    tp2_p = round(entry_p - (risk_pts * 3.0), 2)
+
+                    if is_bear_rejection:
+                        title = "🎯 GOLDEN POCKET SHORT | H1 9-EMA REJECTION"
+                        severity = "CRITICAL"
+                        setup_desc = "GOLDEN POCKET SHORT (REJECTION CONFIRMED)"
+                    else:
+                        title = "⚠️ CASCADE RETEST: H1 9-EMA INTERACTION"
+                        severity = "WARNING"
+                        setup_desc = "PULLBACK RETEST AT H1 9-EMA"
+
                     msg = (
-                        f"<b>Advisory:</b> <code>PULLBACK TEST AT H1 9-EMA</code>\n"
+                        f"<b>Strategy Setup:</b> <code>{setup_desc}</code>\n"
+                        f"<b>Direction:</b> 🔴 <code>SELL SHORT</code>\n"
                         f"<b>Instrument:</b> <code>{state.symbol}</code>\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🎯 <b>Price / H1 9-EMA:</b> <code>{state.price:.2f}</code> / <code>{h1_ema9:.2f}</code>\n"
-                        f"📊 <b>Cascade Status:</b> <code>LOCKED IN CASH</code>\n"
-                        f"🛑 <b>H1 21 / 50 EMAs:</b> <code>{h1_ema21:.2f}</code> / <code>{h1_ema50:.2f}</code>\n\n"
-                        f"💡 <i>Sir, price is testing the H1 9-EMA resistance during the bearish cascade.</i>"
+                        f"💵 <b>Entry Price:</b> <code>{entry_p:.2f}</code>\n"
+                        f"🛑 <b>Stop Loss:</b> <code>{sl_p:.2f}</code> (<b>Risk:</b> <code>{risk_pts:.2f} pts</code>)\n"
+                        f"🎯 <b>Take Profit 1 (1:2.0 R:R):</b> <code>{tp1_p:.2f}</code>\n"
+                        f"🎯 <b>Take Profit 2 (1:3.0 R:R):</b> <code>{tp2_p:.2f}</code>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🏛️ <b>Cascade Resistance:</b>\n"
+                        f"• H1 9-EMA : <code>{h1_ema9:.2f}</code> (Dynamic Ceiling)\n"
+                        f"• H1 21-EMA: <code>{h1_ema21:.2f}</code> | H1 50-EMA: <code>{h1_ema50:.2f}</code>\n"
+                        f"• Invalidation: <code>M15 Close above H1 9-EMA</code>\n\n"
+                        f"💡 <i>Sir, price has interacted with the H1 9-EMA golden pocket resistance within the cascade.</i>"
                     )
                     return SkillResult(
                         skill_name=self.name,
-                        alert_type="CASCADE_RETEST_H1_EMA9",
-                        title="⚠️ CASCADE RETEST: H1 9-EMA INTERACTION",
+                        alert_type="GOLDEN_POCKET_SHORT_H1",
+                        title=title,
                         message=msg,
                         should_notify=True,
-                        severity="WARNING",
-                        metadata={"level": "H1_EMA9", "price": state.price, "h1_ema9": h1_ema9}
+                        severity=severity,
+                        metadata={
+                            "level": "H1_EMA9",
+                            "entry": entry_p,
+                            "sl": sl_p,
+                            "risk": risk_pts,
+                            "tp1": tp1_p,
+                            "tp2": tp2_p,
+                            "is_rejection": is_bear_rejection
+                        }
                     )
 
             # Check 30M 9-EMA Retest
             if m30_ema9 and self.check_ema_interaction(bar.high, bar.low, m30_ema9):
                 if current_time - self.last_m30_retest_alert >= self.retest_cooldown_sec:
                     self.last_m30_retest_alert = current_time
+
+                    entry_p = bar.close
+                    sl_p = round(bar.high + 1.5, 2)
+                    risk_pts = max(round(sl_p - entry_p, 2), 3.5)
+                    tp1_p = round(entry_p - (risk_pts * 2.0), 2)
+                    tp2_p = round(entry_p - (risk_pts * 3.0), 2)
+
+                    if is_bear_rejection:
+                        title = "🎯 GOLDEN POCKET SHORT | 30M 9-EMA REJECTION"
+                        severity = "CRITICAL"
+                        setup_desc = "GOLDEN POCKET SHORT (30M 9-EMA REJECTION)"
+                    else:
+                        title = "⚠️ CASCADE RETEST: 30M 9-EMA INTERACTION"
+                        severity = "WARNING"
+                        setup_desc = "PULLBACK RETEST AT 30M 9-EMA"
+
                     msg = (
-                        f"<b>Advisory:</b> <code>PULLBACK TEST AT 30M 9-EMA</code>\n"
+                        f"<b>Strategy Setup:</b> <code>{setup_desc}</code>\n"
+                        f"<b>Direction:</b> 🔴 <code>SELL SHORT</code>\n"
                         f"<b>Instrument:</b> <code>{state.symbol}</code>\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🎯 <b>Price / 30M 9-EMA:</b> <code>{state.price:.2f}</code> / <code>{m30_ema9:.2f}</code>\n"
-                        f"📊 <b>Cascade Status:</b> <code>LOCKED IN CASH</code>\n\n"
-                        f"💡 <i>Sir, price is interacting with the 30M 9-EMA resistance within the cascade.</i>"
+                        f"💵 <b>Entry Price:</b> <code>{entry_p:.2f}</code>\n"
+                        f"🛑 <b>Stop Loss:</b> <code>{sl_p:.2f}</code> (<b>Risk:</b> <code>{risk_pts:.2f} pts</code>)\n"
+                        f"🎯 <b>Take Profit 1 (1:2.0 R:R):</b> <code>{tp1_p:.2f}</code>\n"
+                        f"🎯 <b>Take Profit 2 (1:3.0 R:R):</b> <code>{tp2_p:.2f}</code>\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🎯 <b>30M 9-EMA:</b> <code>{m30_ema9:.2f}</code>\n"
+                        f"🛑 <b>H1 9-EMA:</b> <code>{h1_ema9:.2f}</code>\n\n"
+                        f"💡 <i>Sir, price is testing the 30M 9-EMA pullback resistance during the bearish cascade.</i>"
                     )
                     return SkillResult(
                         skill_name=self.name,
-                        alert_type="CASCADE_RETEST_M30_EMA9",
-                        title="⚠️ CASCADE RETEST: 30M 9-EMA INTERACTION",
+                        alert_type="GOLDEN_POCKET_SHORT_M30",
+                        title=title,
                         message=msg,
                         should_notify=True,
-                        severity="WARNING",
-                        metadata={"level": "M30_EMA9", "price": state.price, "m30_ema9": m30_ema9}
+                        severity=severity,
+                        metadata={
+                            "level": "M30_EMA9",
+                            "entry": entry_p,
+                            "sl": sl_p,
+                            "risk": risk_pts,
+                            "tp1": tp1_p,
+                            "tp2": tp2_p,
+                            "is_rejection": is_bear_rejection
+                        }
                     )
 
         return None

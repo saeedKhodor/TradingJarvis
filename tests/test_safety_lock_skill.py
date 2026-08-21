@@ -77,12 +77,13 @@ class TestSafetyLockSkill(unittest.TestCase):
         )
         result = self.skill.evaluate(state2)
         self.assertIsNotNone(result)
-        self.assertEqual(result.alert_type, "CASCADE_RETEST_H1_EMA9")
-        self.assertEqual(result.severity, "WARNING")
-        print("[+] Test 2 Passed: H1 9-EMA retest advisory triggered.")
+        self.assertEqual(result.alert_type, "GOLDEN_POCKET_SHORT_H1")
+        self.assertIn("tp1", result.metadata)
+        self.assertIn("tp2", result.metadata)
+        print("[+] Test 2 Passed: Golden Pocket H1 9-EMA short setup triggered.")
 
     def test_safety_lock_m30_retest(self):
-        """Test that pullback touching 30M 9-EMA triggers retest advisory."""
+        """Test that pullback touching 30M 9-EMA triggers Golden Pocket short setup."""
         # Engage lock
         bar1 = CandleBar(time=1700000000, open=7670.0, high=7672.0, low=7665.0, close=7668.0, tick_volume=10, spread=50)
         state1 = MarketState(
@@ -107,8 +108,9 @@ class TestSafetyLockSkill(unittest.TestCase):
         )
         result = self.skill.evaluate(state2)
         self.assertIsNotNone(result)
-        self.assertEqual(result.alert_type, "CASCADE_RETEST_M30_EMA9")
-        print("[+] Test 3 Passed: 30M 9-EMA retest advisory triggered.")
+        self.assertEqual(result.alert_type, "GOLDEN_POCKET_SHORT_M30")
+        self.assertIn("tp1", result.metadata)
+        print("[+] Test 3 Passed: Golden Pocket 30M 9-EMA short setup triggered.")
 
     def test_safety_lock_release(self):
         """Test that breaking above H1 9-EMA releases safety lock."""
